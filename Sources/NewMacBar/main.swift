@@ -1,0 +1,266 @@
+import AppKit
+import SwiftUI
+
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+    let model = BarModel.shared
+    let music = MusicController()
+    let focus = FocusTimer()
+    let dock = DockIntegration()
+    let agenda = CalendarController()
+    let catalog = AppCatalog()
+    var lastShortcutChoice = ""
+    var globalShortcut: GlobalShortcut?
+    var searchPanel: SearchPanel?
+    var calendarPopover: NSPopover?
+    var lastAgendaConfig = ""
+    var lastMusicPoll = Date.distantPast
+    var lastClockStamp = ""
+    var lastPulseAutoHide: Bool?
+    var lastReplaceDock: Bool?
+    var lastTimerMinutes: Double = 25
+    var collectionPopover: NSPopover?
+    var panel: BarPanel!
+    var bar: BarView!
+    var statusItem: NSStatusItem!
+    var settingsWindow: NSWindow?
+    var musicPopover: NSPopover?
+    var timer: Timer?
+    var tick = 0
+    var hidden = false
+    var hoverDeadline = Date.distantPast
+    var screenObserver: NSObjectProtocol?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
+        if UserDefaults.standard.integer(forKey: "layoutVersion") < 2 {
+            model.iconSize = 36; model.iconSpacing = 8; model.bottomOffset = 4
+            model.cornerRadius = 20; model.magnification = 1.35; model.opacity = 0.08
+            UserDefaults.standard.set(2, forKey: "layoutVersion")
+        }
+        let mainMenu = NSMenu(); let appMenuItem = NSMenuItem(); let appMenu = NSMenu()
+        let preferences = NSMenuItem(title: "Настройки…", action: #selector(showSettings), keyEquivalent: ","); preferences.target = self; appMenu.addItem(preferences)
+        let search = NSMenuItem(title: "Быстрый поиск…", action: #selector(showLauncher), keyEquivalent: "k"); search.target = self; appMenu.addItem(search)
+        appMenu.addItem(.separator()); appMenu.addItem(withTitle: "Завершить NewMacBar", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenuItem.submenu = appMenu; mainMenu.addItem(appMenuItem); NSApp.mainMenu = mainMenu
+        panel = BarPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        panel.isOpaque = false; panel.backgroundColor = .clear; panel.hasShadow = false
+        panel.level = .floating; panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        panel.hidesOnDeactivate = false; panel.isReleasedWhenClosed = false
+        panel.title = "NewMacBar"
+        let root = PassthroughView()
+        bar = BarView(model: model, music: music, focus: focus, agenda: agenda)
+        root.addSubview(bar.glass); root.addSubview(bar)
+        panel.contentView = root
+        bar.openSettings = { [weak self] in self?.showSettings() }
+        bar.openAgenda = { [weak self] rect in self?.showAgenda(rect) }
+        agenda.onChange = { [weak self] in self?.bar.needsDisplay = true }
+        bar.openMusic = { [weak self] rect in self?.showMusic(rect) }
+        model.onChange = { [weak self] in self?.preferencesChanged() }
+        bar.openCollection = { [weak self] collection, rect in self?.showCollection(collection, rect) }
+        music.onChange = { [weak self] in self?.bar.needsDisplay = true }
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        statusItem.button?.image = NSImage(systemSymbolName: "rectangle.bottomthird.inset.filled", accessibilityDescription: "NewMacBar")
+        let menu = NSMenu()
+        menu.addItem(withTitle: "NewMacBar — бесплатно", action: nil, keyEquivalent: "")
+        menu.addItem(.separator())
+        let settings = menu.addItem(withTitle: "Настройки…", action: #selector(showSettings), keyEquivalent: ","); settings.target = self
+        let statusSearch = menu.addItem(withTitle: "Быстрый поиск…  ⌃⌥Пробел", action: #selector(showLauncher), keyEquivalent: ""); statusSearch.target = self; statusSearch.tag = 301
+        let show = menu.addItem(withTitle: "Показать панель", action: #selector(reveal), keyEquivalent: ""); show.target = self
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Завершить", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        statusItem.menu = menu
+        screenObserver = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in self?.updatePanel() }
+        preferencesChanged(); panel.orderFrontRegardless()
+        configurePulse()
+        if ProcessInfo.processInfo.arguments.contains("--settings") { showSettings() }
+    }
+    var screen: NSScreen? { let screens = NSScreen.screens; return screens.isEmpty ? nil : screens[min(max(0, model.screenIndex), screens.count - 1)] }
+    func updatePanel(animated: Bool = false) {
+        guard panel != nil, let screen else { return }
+        let width = min(bar.preferredWidth, screen.frame.width - 24)
+        let height = bar.preferredHeight
+        let y = hidden && model.autoHide ? screen.frame.minY - height + 3 : screen.frame.minY + CGFloat(model.bottomOffset)
+        let frame = NSRect(x: screen.frame.midX - width / 2, y: y, width: width, height: height)
+        if animated && !model.reduceMotion && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            NSAnimationContext.runAnimationGroup { context in context.duration = 0.2; context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut); panel.animator().setFrame(frame, display: true) }
+        } else { panel.setFrame(frame, display: true) }
+        bar.frame = NSRect(origin: .zero, size: panel.frame.size)
+        bar.refresh()
+        music.preference = model.playerPreference
+        if model.widgetKinds.contains("music") { music.refresh() }
+    }
+    func configurePulse() {
+        guard lastPulseAutoHide != model.autoHide else { return }
+        lastPulseAutoHide = model.autoHide; timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: model.autoHide ? 0.1 : 1, repeats: true) { [weak self] _ in self?.pulse() }
+        timer?.tolerance = model.autoHide ? 0.02 : 0.15
+    }
+    func pulse() {
+        let now = Date()
+        if model.widgetKinds.contains("music"), (!hidden || musicPopover?.isShown == true), now.timeIntervalSince(lastMusicPoll) >= (musicPopover?.isShown == true ? 1 : 4) { lastMusicPoll = now; music.refresh() }
+        if model.calendarEventsEnabled { agenda.refresh() }
+        let timestamp = String(Int(now.timeIntervalSince1970) / (model.clockSeconds || focus.isRunning ? 1 : 60))
+        if !hidden && timestamp != lastClockStamp { lastClockStamp = timestamp; bar.needsDisplay = true }
+        guard let screen else { return }
+        if !model.autoHide { if hidden { hidden = false; updatePanel() }; return }
+        let mouse = NSEvent.mouseLocation
+        let nearBottom = mouse.x >= panel.frame.minX && mouse.x <= panel.frame.maxX && mouse.y >= screen.frame.minY && mouse.y < screen.frame.minY + 7
+        let inside = !hidden && panel.frame.insetBy(dx: -12, dy: -10).contains(mouse)
+        if inside || nearBottom || (settingsWindow?.isVisible == true || musicPopover?.isShown == true || collectionPopover?.isShown == true || calendarPopover?.isShown == true) { hoverDeadline = Date().addingTimeInterval(0.8); if hidden { hidden = false; updatePanel(animated: true) } }
+        else if !hidden && Date() > hoverDeadline { hidden = true; updatePanel(animated: true) }
+    }
+    func showAgenda(_ rect: NSRect) {
+        reveal()
+        if calendarPopover == nil {
+            let popover = NSPopover(); popover.behavior = .transient
+            popover.contentViewController = NSHostingController(rootView: CalendarPopoverView(agenda: agenda, model: model))
+            popover.contentSize = NSSize(width: 350, height: 540); calendarPopover = popover
+        }
+        calendarPopover?.show(relativeTo: rect, of: bar, preferredEdge: .maxY)
+    }
+    func showMusic(_ rect: NSRect) {
+        reveal()
+        if musicPopover == nil {
+            let popover = NSPopover(); popover.behavior = .transient
+            popover.contentViewController = NSHostingController(rootView: MusicPopoverView(music: music))
+            popover.contentSize = NSSize(width: 350, height: 225)
+            musicPopover = popover
+        }
+        music.refresh(); musicPopover?.show(relativeTo: rect, of: bar, preferredEdge: .maxY)
+    }
+    func preferencesChanged() {
+        configurePulse()
+        if model.launcherEnabled && (globalShortcut == nil || lastShortcutChoice != model.launcherShortcutChoice) { globalShortcut = nil; lastShortcutChoice = model.launcherShortcutChoice; globalShortcut = GlobalShortcut(choice: model.launcherShortcutChoice) { [weak self] in self?.showLauncher() }; model.launcherShortcutAvailable = globalShortcut?.registered == true }
+        if !model.launcherEnabled { globalShortcut = nil; model.launcherShortcutAvailable = false }
+        statusItem?.menu?.item(withTag: 301)?.title = "Быстрый поиск…  " + (model.launcherEnabled && model.launcherShortcutAvailable ? model.launcherShortcutLabel : "")
+        let agendaConfig = "\(model.calendarEventsEnabled)-\(model.selectedCalendarIDs.sorted())"
+        agenda.enabled = model.calendarEventsEnabled; agenda.selectedIDs = model.selectedCalendarIDs
+        if agendaConfig != lastAgendaConfig { lastAgendaConfig = agendaConfig; agenda.refresh(force: true) }
+        if lastReplaceDock != model.replaceDock {
+            lastReplaceDock = model.replaceDock
+            if model.replaceDock { dock.enable() } else { dock.restore() }
+        }
+        if lastTimerMinutes != model.timerMinutes {
+            lastTimerMinutes = model.timerMinutes
+            if !focus.isRunning { focus.reset(minutes: model.timerMinutes) }
+        }
+        updateProfileMenu()
+        updatePanel()
+    }
+    func showCollection(_ collection: AppCollection, _ rect: NSRect) {
+        reveal()
+        collectionPopover?.close()
+        let popover = NSPopover(); popover.behavior = .transient
+        popover.contentViewController = NSHostingController(rootView: CollectionPopoverView(collection: collection, model: model))
+        popover.contentSize = NSSize(width: 330, height: 240); collectionPopover = popover
+        popover.show(relativeTo: rect, of: bar, preferredEdge: .maxY)
+    }
+    func updateProfileMenu() {
+        guard let menu = statusItem?.menu else { return }
+        for item in menu.items where item.tag == 300 { menu.removeItem(item) }
+        if !model.profiles.isEmpty {
+            let group = NSMenuItem(title: "Профили панели", action: nil, keyEquivalent: ""); group.tag = 300
+            let submenu = NSMenu()
+            for profile in model.profiles { let item = NSMenuItem(title: profile.name, action: #selector(selectProfile(_:)), keyEquivalent: ""); item.target = self; item.representedObject = profile; submenu.addItem(item) }
+            group.submenu = submenu; menu.insertItem(group, at: min(4, menu.numberOfItems))
+        }
+    }
+    @objc func selectProfile(_ sender: NSMenuItem) { if let profile = sender.representedObject as? DockProfile { model.applyProfile(profile) } }
+    func applicationWillTerminate(_ notification: Notification) { dock.restore() }
+    @objc func showLauncher() {
+        catalog.refresh()
+        if searchPanel == nil {
+            let window = SearchPanel(contentRect: NSRect(x: 0, y: 0, width: 590, height: 420), styleMask: [.borderless], backing: .buffered, defer: false)
+            window.isOpaque = false; window.backgroundColor = .clear; window.hasShadow = true; window.level = .floating
+            window.isReleasedWhenClosed = false; searchPanel = window
+        }
+        searchPanel?.contentView = NSHostingView(rootView: QuickLauncherView(model: model, catalog: catalog, close: { [weak self] in self?.searchPanel?.orderOut(nil) }))
+        searchPanel?.center(); NSApp.activate(ignoringOtherApps: true); searchPanel?.makeKeyAndOrderFront(nil)
+    }
+    @objc func reveal() { hidden = false; hoverDeadline = Date().addingTimeInterval(3); updatePanel(); panel.orderFrontRegardless() }
+    @objc func showSettings() {
+        if settingsWindow == nil {
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 990, height: 760), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+            window.title = "NewMacBar"; window.titlebarAppearsTransparent = true
+            window.backgroundColor = NSColor(red: 0.075, green: 0.085, blue: 0.1, alpha: 1)
+            window.contentView = NSHostingView(rootView: SettingsView(model: model, dock: dock, focus: focus, agenda: agenda)); window.minSize = NSSize(width: 920, height: 680)
+            window.isReleasedWhenClosed = false; window.delegate = self; window.center(); settingsWindow = window
+        }
+        NSApp.activate(ignoringOtherApps: true); settingsWindow?.makeKeyAndOrderFront(nil)
+    }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+}
+
+func runSelfTests() {
+    let suite = "app.newmacbar.selftest.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defaults.set([String](), forKey: "pinned")
+    let model = BarModel(defaults: defaults, observe: false)
+    let paths = ["/System/Library/CoreServices/Finder.app", "/System/Applications/Music.app", "/System/Applications/Calendar.app"]
+    for path in paths { model.add(URL(fileURLWithPath: path)) }
+    precondition(model.pinned.count == 3, "App validation / insertion")
+    model.add(URL(fileURLWithPath: paths[0])); precondition(model.pinned.count == 3, "Deduplication")
+    model.add(URL(fileURLWithPath: "/private/tmp/not-an-app.txt")); precondition(model.pinned.count == 3, "Reject invalid drop")
+    model.move(paths[0], to: 3); precondition(model.pinned.map(\.id) == [paths[1], paths[2], paths[0]], "Move right")
+    model.move(paths[0], to: 0); precondition(model.pinned.map(\.id) == paths, "Move left")
+    model.move(paths[1], to: 2); precondition(model.pinned.map(\.id) == paths, "Adjacent insertion is no-op")
+    model.move(paths[0], to: 999); precondition(model.pinned.last?.id == paths[0], "Clamp boundary")
+    model.iconSize = 52; model.widget = "music"
+    let restored = BarModel(defaults: defaults, observe: false)
+    precondition(restored.pinned == model.pinned && restored.iconSize == 52 && restored.widget == "music", "Persistence")
+    model.remove(model.pinned[0]); precondition(model.pinned.count == 2, "Remove")
+    model.widgetWidth = 212; model.widgetAccent = "mint"; model.widgetStyle = "compact"
+    model.clockSeconds = true; model.replaceDock = false; model.hoverStyle = "scale"
+    let group = AppCollection(name: "Работа", paths: paths)
+    model.updateCollection(group)
+    var updated = group; updated.name = "Фокус"; updated.paths.removeLast()
+    model.updateCollection(updated)
+    precondition(model.collections.count == 1 && model.collections[0] == updated, "Collection edit")
+    let reloaded = BarModel(defaults: defaults, observe: false)
+    precondition(reloaded.collections == [updated] && reloaded.widgetWidth == 212 && reloaded.clockSeconds && !reloaded.replaceDock && reloaded.widgetAccent == "mint" && reloaded.widgetStyle == "compact" && reloaded.hoverStyle == "scale", "Detailed settings persistence, collections, widget configuration, focus timer")
+    model.removeCollection(group.id); precondition(model.collections.isEmpty, "Collection deletion")
+    let focus = FocusTimer(); focus.reset(minutes: 5); precondition(focus.text == "05:00", "Timer duration")
+    focus.toggle(minutes: 5); precondition(focus.isRunning, "Timer start")
+    focus.toggle(minutes: 5); precondition(!focus.isRunning && focus.remaining <= 300, "Timer pause")
+    focus.reset(minutes: 25); precondition(focus.remaining == 1500 && !focus.isRunning, "Timer reset")
+    let appURL = URL(fileURLWithPath: paths[1])
+    precondition(ActionRouter.calendarTarget(kind: "app", appPath: paths[1], webURL: "") == .application(appURL), "Custom calendar app")
+    precondition(ActionRouter.calendarTarget(kind: "app", appPath: "/private/tmp/missing.app", webURL: "") == nil, "Missing calendar app")
+    precondition(ActionRouter.calendarTarget(kind: "web", appPath: "", webURL: "https://calendar.google.com") == .resource(URL(string: "https://calendar.google.com")!), "Web calendar")
+    precondition(ActionRouter.calendarTarget(kind: "web", appPath: "", webURL: "javascript:alert(1)") == nil, "Calendar URL validation")
+    precondition(!model.addQuickLink(name: "", kind: "web", destination: "https://example.com"), "Empty link label")
+    precondition(!model.addQuickLink(name: "Unsafe", kind: "web", destination: "file:///etc/passwd"), "Only web protocols for sites")
+    precondition(model.addQuickLink(name: "Example", kind: "web", destination: "https://example.com"), "Add website link")
+    precondition(!model.addQuickLink(name: "Duplicate", kind: "web", destination: "https://example.com"), "Website deduplication")
+    precondition(model.addQuickLink(name: "Temp", kind: "folder", destination: "/private/tmp"), "Add folder link")
+    model.secondaryWidget = "calendar"; precondition(model.widgetKinds == ["music", "calendar"], "Two distinct widgets")
+    model.secondaryWidget = "music"; precondition(model.widgetKinds == ["music"], "Duplicate widgets collapse")
+    model.secondaryWidget = "calendar"
+    model.calendarDestination = "web"; model.calendarWebURL = "https://calendar.google.com"
+    model.calendarEventsEnabled = true; model.selectedCalendarIDs = ["test-calendar"]; model.launcherEnabled = false
+    model.applyPreset("aurora")
+    model.saveProfile(name: "Работа")
+    precondition(model.profiles.count == 1, "Create profile")
+    let savedProfile = model.profiles[0]
+    let before = ProfileAppearance(model)
+    var notifications = 0; model.onChange = { notifications += 1 }
+    model.applyPreset("electric"); precondition(notifications == 1, "Preset saves atomically")
+    model.quickLinks = []; model.pinned = []; model.applyProfile(savedProfile)
+    precondition(ProfileAppearance(model) == before && model.quickLinks.count == 2 && !model.pinned.isEmpty, "Profile restores layout and actions")
+    precondition(model.calendarWebURL == "https://calendar.google.com" && !model.replaceDock, "Profile preserves external integrations")
+    let settings = BarModel(defaults: defaults, observe: false)
+    precondition(settings.profiles == model.profiles && settings.quickLinks == model.quickLinks && settings.secondaryWidget == "calendar" && settings.calendarDestination == "web" && settings.selectedCalendarIDs == ["test-calendar"] && settings.calendarEventsEnabled && !settings.launcherEnabled, "New feature persistence")
+    model.removeQuickLink(model.quickLinks[0].id); precondition(model.quickLinks.count == 1, "Remove quick link")
+    model.deleteProfile(savedProfile.id); precondition(model.profiles.isEmpty, "Delete profile")
+    precondition(AppCatalog.searchScore("SAF", in: "Safari") == 0 && AppCatalog.searchScore("vsc", in: "Visual Studio Code") != nil && AppCatalog.searchScore("zzz", in: "Safari") == nil, "Launcher search ranking")
+    defaults.removePersistentDomain(forName: suite)
+    print("PASS: app validation, reorder, persistence, collections, timer, calendar routing, link validation, two widgets, profiles, atomic preset changes, launcher search")
+}
+
+if CommandLine.arguments.contains("--self-test") { runSelfTests() }
+else {
+    let app = NSApplication.shared
+    let delegate = AppDelegate()
+    app.delegate = delegate
+    app.run()
+}

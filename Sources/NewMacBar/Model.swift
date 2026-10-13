@@ -1,0 +1,303 @@
+import AppKit
+import Combine
+
+struct DockItem: Identifiable, Equatable {
+    let url: URL
+    let id: String
+    let bundleID: String?
+    let name: String
+    let icon: NSImage
+    init(url: URL) {
+        self.url = url; id = url.standardizedFileURL.path; bundleID = Bundle(url: url)?.bundleIdentifier
+        name = FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "")
+        icon = NSWorkspace.shared.icon(forFile: url.path)
+    }
+    static func == (lhs: DockItem, rhs: DockItem) -> Bool { lhs.id == rhs.id }
+}
+
+final class BarModel: ObservableObject {
+    static let shared = BarModel()
+    private let defaults: UserDefaults
+    @Published var pinned: [DockItem] = []
+    @Published var running: [NSRunningApplication] = []
+    @Published var iconSize: Double { didSet { save() } }
+    @Published var magnification: Double { didSet { save() } }
+    @Published var bottomOffset: Double { didSet { save() } }
+    @Published var opacity: Double { didSet { save() } }
+    @Published var showRunning: Bool { didSet { save() } }
+    @Published var autoHide: Bool { didSet { save() } }
+    @Published var widget: String { didSet { save() } }
+    @Published var theme: String { didSet { save() } }
+    @Published var screenIndex: Int { didSet { save() } }
+    @Published var iconSpacing: Double { didSet { save() } }
+    @Published var cornerRadius: Double { didSet { save() } }
+    @Published var hoverLift: Double { didSet { save() } }
+    @Published var widgetWidth: Double { didSet { save() } }
+    @Published var widgetOpacity: Double { didSet { save() } }
+    @Published var timerMinutes: Double { didSet { save() } }
+    @Published var widgetAccent: String { didSet { save() } }
+    @Published var widgetStyle: String { didSet { save() } }
+    @Published var hoverStyle: String { didSet { save() } }
+    @Published var launchStyle: String { didSet { save() } }
+    @Published var indicatorStyle: String { didSet { save() } }
+    @Published var playerPreference: String { didSet { save() } }
+    @Published var clockFormat: String { didSet { save() } }
+    @Published var clockSeconds: Bool { didSet { save() } }
+    @Published var replaceDock: Bool { didSet { save() } }
+    @Published var showLabels: Bool { didSet { save() } }
+    @Published var showSettingsButton: Bool { didSet { save() } }
+    @Published var showSeparator: Bool { didSet { save() } }
+    @Published var collections: [AppCollection] = []
+    @Published var calendarDestination: String { didSet { save() } }
+    @Published var calendarAppPath: String { didSet { save() } }
+    @Published var calendarWebURL: String { didSet { save() } }
+    @Published var clockAction: String { didSet { save() } }
+    @Published var secondaryWidget: String { didSet { save() } }
+    @Published var calendarEventsEnabled: Bool { didSet { save() } }
+    @Published var launcherShortcutChoice: String { didSet { save() } }
+    @Published var launcherShortcutAvailable = false
+    @Published var launcherEnabled: Bool { didSet { save() } }
+    @Published var hoverGlow: Bool { didSet { save() } }
+    @Published var reduceMotion: Bool { didSet { save() } }
+    @Published var quickLinks: [QuickLink] = []
+    @Published var profiles: [DockProfile] = []
+    @Published var selectedCalendarIDs: [String] = []
+    @Published private(set) var items: [DockItem] = []
+    var activeBundleID: String?
+    private var batching = false
+    var onChange: (() -> Void)?
+    private var observers: [NSObjectProtocol] = []
+
+    init(defaults: UserDefaults = .standard, observe: Bool = true) {
+        self.defaults = defaults
+        iconSize = defaults.object(forKey: "iconSize") as? Double ?? 36
+        magnification = defaults.object(forKey: "magnification") as? Double ?? 1.35
+        bottomOffset = defaults.object(forKey: "bottomOffset") as? Double ?? 10
+        opacity = defaults.object(forKey: "opacity") as? Double ?? 0.08
+        showRunning = defaults.object(forKey: "showRunning") as? Bool ?? true
+        autoHide = defaults.bool(forKey: "autoHide")
+        widget = defaults.string(forKey: "widget") ?? "clock"
+        theme = defaults.string(forKey: "theme") ?? "dark"
+        screenIndex = defaults.integer(forKey: "screenIndex")
+        iconSpacing = defaults.object(forKey: "iconSpacing") as? Double ?? 8
+        cornerRadius = defaults.object(forKey: "cornerRadius") as? Double ?? 20
+        hoverLift = defaults.object(forKey: "hoverLift") as? Double ?? 7
+        widgetWidth = defaults.object(forKey: "widgetWidth") as? Double ?? 158
+        widgetOpacity = defaults.object(forKey: "widgetOpacity") as? Double ?? 0.28
+        timerMinutes = defaults.object(forKey: "timerMinutes") as? Double ?? 25
+        widgetAccent = defaults.string(forKey: "widgetAccent") ?? "violet"
+        widgetStyle = defaults.string(forKey: "widgetStyle") ?? "wide"
+        hoverStyle = defaults.string(forKey: "hoverStyle") ?? "lift"
+        launchStyle = defaults.string(forKey: "launchStyle") ?? "bounce"
+        indicatorStyle = defaults.string(forKey: "indicatorStyle") ?? "dot"
+        playerPreference = defaults.string(forKey: "playerPreference") ?? "auto"
+        clockFormat = defaults.string(forKey: "clockFormat") ?? "24h"
+        clockSeconds = defaults.object(forKey: "clockSeconds") as? Bool ?? false
+        replaceDock = defaults.object(forKey: "replaceDock") as? Bool ?? true
+        showLabels = defaults.object(forKey: "showLabels") as? Bool ?? true
+        showSettingsButton = defaults.object(forKey: "showSettingsButton") as? Bool ?? false
+        showSeparator = defaults.object(forKey: "showSeparator") as? Bool ?? true
+        calendarDestination = defaults.string(forKey: "calendarDestination") ?? "system"
+        calendarAppPath = defaults.string(forKey: "calendarAppPath") ?? ""
+        calendarWebURL = defaults.string(forKey: "calendarWebURL") ?? "https://calendar.google.com"
+        clockAction = defaults.string(forKey: "clockAction") ?? "open"
+        secondaryWidget = defaults.string(forKey: "secondaryWidget") ?? "none"
+        calendarEventsEnabled = defaults.object(forKey: "calendarEventsEnabled") as? Bool ?? false
+        launcherShortcutChoice = defaults.string(forKey: "launcherShortcutChoice") ?? "controlOptionSpace"
+        launcherEnabled = defaults.object(forKey: "launcherEnabled") as? Bool ?? true
+        hoverGlow = defaults.object(forKey: "hoverGlow") as? Bool ?? true
+        reduceMotion = defaults.object(forKey: "reduceMotion") as? Bool ?? false
+        if let data = defaults.data(forKey: "quickLinks"), let stored = try? JSONDecoder().decode([QuickLink].self, from: data) { quickLinks = stored }
+        if let data = defaults.data(forKey: "profiles"), let stored = try? JSONDecoder().decode([DockProfile].self, from: data) { profiles = stored }
+        selectedCalendarIDs = defaults.stringArray(forKey: "selectedCalendarIDs") ?? []
+        if let data = defaults.data(forKey: "collections"), let stored = try? JSONDecoder().decode([AppCollection].self, from: data) { collections = stored }
+        if let paths = defaults.array(forKey: "pinned") as? [String] {
+            pinned = paths.map { DockItem(url: URL(fileURLWithPath: $0)) }.filter { FileManager.default.fileExists(atPath: $0.id) }
+        } else {
+            pinned = Self.systemDockItems()
+        }
+        if observe {
+            let nc = NSWorkspace.shared.notificationCenter
+            for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification, NSWorkspace.didActivateApplicationNotification] {
+                observers.append(nc.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in self?.refreshRunning() })
+            }
+            refreshRunning()
+        } else { rebuildItems() }
+    }
+    static func systemDockItems() -> [DockItem] {
+        let dock = UserDefaults.standard.persistentDomain(forName: "com.apple.dock")
+        let tiles = dock?["persistent-apps"] as? [[String: Any]] ?? []
+        var result: [DockItem] = []
+        for tile in tiles {
+            guard let data = tile["tile-data"] as? [String: Any], let file = data["file-data"] as? [String: Any], let path = file["_CFURLString"] as? String, let url = URL(string: path), url.isFileURL, FileManager.default.fileExists(atPath: url.path) else { continue }
+            let item = DockItem(url: url)
+            if !result.contains(where: { $0.id == item.id }) { result.append(item) }
+        }
+        if result.isEmpty {
+            result = ["/System/Library/CoreServices/Finder.app", "/Applications/Safari.app", "/System/Applications/Messages.app", "/System/Applications/System Settings.app"].filter { FileManager.default.fileExists(atPath: $0) }.map { DockItem(url: URL(fileURLWithPath: $0)) }
+        }
+        return result
+    }
+    private func rebuildItems() {
+        var list = pinned
+        var paths = Set(pinned.map(\.id)); var bundleIDs = Set(pinned.compactMap(\.bundleID))
+        if showRunning {
+            for app in running {
+                guard let url = app.bundleURL, app.bundleIdentifier != Bundle.main.bundleIdentifier,
+                      !paths.contains(url.standardizedFileURL.path), app.bundleIdentifier.map({ !bundleIDs.contains($0) }) ?? true else { continue }
+                let item = DockItem(url: url); list.append(item); paths.insert(item.id)
+                if let id = item.bundleID { bundleIDs.insert(id) }
+            }
+        }
+        if list != items { items = list }
+        activeBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+    }
+    func batch(_ body: () -> Void) { batching = true; body(); batching = false; save() }
+    func refreshRunning() {
+        running = NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular }
+        rebuildItems(); onChange?()
+    }
+    func isRunning(_ item: DockItem) -> Bool { running.contains { $0.bundleIdentifier == item.bundleID } }
+    func add(_ url: URL, at index: Int? = nil) {
+        guard url.pathExtension.lowercased() == "app", let bundle = Bundle(url: url), bundle.bundleIdentifier != nil else { return }
+        let item = DockItem(url: url)
+        guard !pinned.contains(where: { $0.id == item.id }) else { return }
+        pinned.insert(item, at: min(max(index ?? pinned.count, 0), pinned.count))
+        save()
+    }
+    func remove(_ item: DockItem) { pinned.removeAll { $0.id == item.id }; save() }
+    // Destination is an insertion boundary in the original list.
+    func move(_ id: String, to boundary: Int) {
+        guard let source = pinned.firstIndex(where: { $0.id == id }) else { return }
+        let item = pinned.remove(at: source)
+        let target = boundary > source ? boundary - 1 : boundary
+        pinned.insert(item, at: min(max(target, 0), pinned.count))
+        save()
+    }
+    func updateCollection(_ collection: AppCollection) {
+        if let index = collections.firstIndex(where: { $0.id == collection.id }) { collections[index] = collection }
+        else { collections.append(collection) }
+        save()
+    }
+    func removeCollection(_ id: String) { collections.removeAll { $0.id == id }; save() }
+    func importDock() { pinned = Self.systemDockItems(); save() }
+    func save() {
+        guard !batching else { return }
+        rebuildItems()
+        defaults.set(calendarDestination, forKey: "calendarDestination")
+        defaults.set(calendarAppPath, forKey: "calendarAppPath")
+        defaults.set(calendarWebURL, forKey: "calendarWebURL")
+        defaults.set(clockAction, forKey: "clockAction")
+        defaults.set(secondaryWidget, forKey: "secondaryWidget")
+        defaults.set(calendarEventsEnabled, forKey: "calendarEventsEnabled")
+        defaults.set(launcherShortcutChoice, forKey: "launcherShortcutChoice")
+        defaults.set(launcherEnabled, forKey: "launcherEnabled")
+        defaults.set(hoverGlow, forKey: "hoverGlow")
+        defaults.set(reduceMotion, forKey: "reduceMotion")
+        if let data = try? JSONEncoder().encode(quickLinks) { defaults.set(data, forKey: "quickLinks") }
+        if let data = try? JSONEncoder().encode(profiles) { defaults.set(data, forKey: "profiles") }
+        defaults.set(selectedCalendarIDs, forKey: "selectedCalendarIDs")
+
+        defaults.set(pinned.map(\.id), forKey: "pinned")
+        defaults.set(iconSpacing, forKey: "iconSpacing")
+        defaults.set(cornerRadius, forKey: "cornerRadius")
+        defaults.set(hoverLift, forKey: "hoverLift")
+        defaults.set(widgetWidth, forKey: "widgetWidth")
+        defaults.set(widgetOpacity, forKey: "widgetOpacity")
+        defaults.set(timerMinutes, forKey: "timerMinutes")
+        defaults.set(widgetAccent, forKey: "widgetAccent")
+        defaults.set(widgetStyle, forKey: "widgetStyle")
+        defaults.set(hoverStyle, forKey: "hoverStyle")
+        defaults.set(launchStyle, forKey: "launchStyle")
+        defaults.set(indicatorStyle, forKey: "indicatorStyle")
+        defaults.set(playerPreference, forKey: "playerPreference")
+        defaults.set(clockFormat, forKey: "clockFormat")
+        defaults.set(clockSeconds, forKey: "clockSeconds")
+        defaults.set(replaceDock, forKey: "replaceDock")
+        defaults.set(showLabels, forKey: "showLabels")
+        defaults.set(showSettingsButton, forKey: "showSettingsButton")
+        defaults.set(showSeparator, forKey: "showSeparator")
+        if let data = try? JSONEncoder().encode(collections) { defaults.set(data, forKey: "collections") }
+        for (key, value) in ["iconSize": iconSize, "magnification": magnification, "bottomOffset": bottomOffset, "opacity": opacity] { defaults.set(value, forKey: key) }
+        defaults.set(showRunning, forKey: "showRunning"); defaults.set(autoHide, forKey: "autoHide")
+        defaults.set(widget, forKey: "widget"); defaults.set(theme, forKey: "theme"); defaults.set(screenIndex, forKey: "screenIndex")
+        onChange?()
+    }
+    func launch(_ item: DockItem) {
+        if let app = running.first(where: { $0.bundleIdentifier == item.bundleID }) { app.activate(options: [.activateAllWindows]); return }
+        NSWorkspace.shared.openApplication(at: item.url, configuration: NSWorkspace.OpenConfiguration()) { _, error in
+            if let error { DispatchQueue.main.async { let alert = NSAlert(error: error); alert.runModal() } }
+        }
+    }
+}
+
+final class MusicController: ObservableObject {
+    @Published var title = "Музыка"
+    @Published var artist = "Spotify / Apple Music"
+    @Published var playing = false
+    @Published var position: Double = 0
+    @Published var duration: Double = 0
+    var onChange: (() -> Void)?
+    private let queue = DispatchQueue(label: "NewMacBar.music")
+    private var busy = false
+    var preference = "auto"
+    @Published var artwork: NSImage?
+    private var artworkURL: String?
+    var playerID: String? {
+        let apps = NSWorkspace.shared.runningApplications
+        let candidates = preference == "spotify" ? ["com.spotify.client"] : (preference == "music" ? ["com.apple.Music"] : ["com.spotify.client", "com.apple.Music"])
+        return candidates.first { id in apps.contains { $0.bundleIdentifier == id } }
+    }
+    func refresh() {
+        guard !busy else { return }
+        guard let id = playerID else { title = "Музыка"; artist = "Открой Spotify или Music"; playing = false; position = 0; duration = 0; artwork = nil; artworkURL = nil; onChange?(); return }
+        busy = true
+        let durationExpression = id == "com.spotify.client" ? "((duration of current track) / 1000)" : "(duration of current track)"
+        let artworkExpression = id == "com.spotify.client" ? "(artwork url of current track)" : "\"\""
+        let source = """
+        tell application id "\(id)"
+            if player state is stopped then return "Музыка|||Ничего не играет|||stopped"
+            return (name of current track) & "|||" & (artist of current track) & "|||" & (player state as string) & "|||" & (player position as string) & "|||" & (\(durationExpression) as string) & "|||" & \(artworkExpression)
+        end tell
+        """
+        queue.async { [weak self] in
+            var error: NSDictionary?
+            let value = NSAppleScript(source: source)?.executeAndReturnError(&error).stringValue
+            let failed = error != nil
+            DispatchQueue.main.async {
+                guard let self else { return }; self.busy = false
+                let parts = value?.components(separatedBy: "|||") ?? []
+                if parts.count >= 3 { self.title = parts[0]; self.artist = parts[1]; self.playing = parts[2] == "playing"; self.position = parts.count > 3 ? Double(parts[3].replacingOccurrences(of: ",", with: ".")) ?? 0 : 0; self.duration = parts.count > 4 ? Double(parts[4].replacingOccurrences(of: ",", with: ".")) ?? 0 : 0 }
+                else { self.title = "Нет доступа к плееру"; self.artist = failed ? "Разреши Автоматизацию в macOS" : "Ничего не играет"; self.playing = false }
+                if parts.count > 5 { self.loadArtwork(parts[5]) }
+                else { self.artwork = nil; self.artworkURL = nil }
+                self.onChange?()
+            }
+        }
+    }
+    private func loadArtwork(_ path: String) {
+        guard artworkURL != path else { return }
+        artworkURL = path; artwork = nil
+        guard let url = URL(string: path), url.scheme == "https" else { return }
+        URLSession.shared.dataTask(with: url) { [weak self] data, response, _ in
+            guard let data, data.count < 8_000_000, let response = response as? HTTPURLResponse, response.statusCode == 200 else { return }
+            DispatchQueue.main.async {
+                guard let self, self.artworkURL == path else { return }
+                self.artwork = NSImage(data: data); self.onChange?()
+            }
+        }.resume()
+    }
+    func seek(_ seconds: Double) { command("set player position to \(max(0, min(seconds, duration)))") }
+    func command(_ command: String) {
+        guard let id = playerID else {
+            let preferred = preference == "music" ? "com.apple.Music" : "com.spotify.client"
+            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: preferred) ?? (preference == "auto" ? NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Music") : nil) { NSWorkspace.shared.open(url) }
+            return
+        }
+        queue.async { [weak self] in
+            var error: NSDictionary?
+            NSAppleScript(source: "tell application id \"\(id)\" to \(command)")?.executeAndReturnError(&error)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { self?.refresh() }
+        }
+    }
+}

@@ -1,0 +1,100 @@
+import SwiftUI
+import AppKit
+import Carbon
+
+final class GlobalShortcut {
+    var action: (() -> Void)?
+    private var localMonitor: Any?
+    private var lastTrigger = Date.distantPast
+    private var keyRef: EventHotKeyRef?
+    private var handlerRef: EventHandlerRef?
+    private(set) var registered = false
+    init(choice: String, action: @escaping () -> Void) {
+        self.action = action
+        var event = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        let context = Unmanaged.passUnretained(self).toOpaque()
+        let status = InstallEventHandler(GetEventDispatcherTarget(), { _, _, context in
+            guard let context else { return OSStatus(eventNotHandledErr) }
+            Unmanaged<GlobalShortcut>.fromOpaque(context).takeUnretainedValue().trigger()
+            return noErr
+        }, 1, &event, context, &handlerRef)
+        let modifiers = choice == "commandShiftSpace" ? UInt32(cmdKey | shiftKey) : (choice == "optionShiftSpace" ? UInt32(optionKey | shiftKey) : UInt32(controlKey | optionKey))
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            let desired: NSEvent.ModifierFlags = choice == "commandShiftSpace" ? [.command, .shift] : (choice == "optionShiftSpace" ? [.option, .shift] : [.control, .option])
+            let actual = event.modifierFlags.intersection([.command, .control, .option, .shift])
+            if event.keyCode == UInt16(kVK_Space), actual == desired { self?.trigger(); return nil }
+            return event
+        }
+        if status == noErr { registered = RegisterEventHotKey(UInt32(kVK_Space), modifiers, EventHotKeyID(signature: 0x4E4D4252, id: 1), GetEventDispatcherTarget(), 0, &keyRef) == noErr }
+    }
+    private func trigger() { guard Date().timeIntervalSince(lastTrigger) > 0.2 else { return }; lastTrigger = Date(); action?() }
+    deinit { if let localMonitor { NSEvent.removeMonitor(localMonitor) }; if let keyRef { UnregisterEventHotKey(keyRef) }; if let handlerRef { RemoveEventHandler(handlerRef) } }
+}
+
+final class AppCatalog: ObservableObject {
+    @Published private(set) var items: [DockItem] = []
+    private var refreshed = Date.distantPast
+    func refresh() {
+        guard Date().timeIntervalSince(refreshed) > 120 else { return }
+        refreshed = Date()
+        var urls: [URL] = []
+        for path in ["/Applications", "/System/Applications", "/System/Applications/Utilities", NSHomeDirectory() + "/Applications"] { urls += (try? FileManager.default.contentsOfDirectory(at: URL(fileURLWithPath: path), includingPropertiesForKeys: nil)) ?? [] }
+        var paths = Set<String>()
+        items = urls.filter { $0.pathExtension.lowercased() == "app" && paths.insert($0.standardizedFileURL.path).inserted }.map { DockItem(url: $0) }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+    static func searchScore(_ query: String, in name: String) -> Int? {
+        let q = query.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current).filter { !$0.isWhitespace }
+        let n = name.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+        if q.isEmpty { return 0 }
+        if n.hasPrefix(q) { return 0 }
+        if n.contains(q) { return 20 }
+        var cursor = n.startIndex; var gaps = 0
+        for char in q {
+            guard let index = n[cursor...].firstIndex(of: char) else { return nil }
+            gaps += n.distance(from: cursor, to: index); cursor = n.index(after: index)
+        }
+        return 40 + gaps
+    }
+}
+
+final class SearchPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+    override func cancelOperation(_ sender: Any?) { orderOut(nil) }
+}
+
+struct LauncherResult: Identifiable {
+    let id: String
+    let title: String
+    let subtitle: String
+    let image: NSImage?
+    let symbol: String
+    let action: () -> Void
+}
+
+struct QuickLauncherView: View {
+    @ObservedObject var model: BarModel
+    @ObservedObject var catalog: AppCatalog
+    let close: () -> Void
+    @State private var query = ""
+    @State private var selected = 0
+    @FocusState private var focused: Bool
+    private var results: [LauncherResult] {
+        var list = catalog.items.map { item in LauncherResult(id: "app:" + item.id, title: item.name, subtitle: model.isRunning(item) ? "Открыто · переключиться" : "Приложение", image: item.icon, symbol: "app", action: { model.launch(item) }) }
+        list += model.quickLinks.map { link in LauncherResult(id: link.id, title: link.name, subtitle: link.kind == "folder" ? "Папка" : "Сайт", image: nil, symbol: link.symbol, action: { if let url = link.url { ActionRouter.open(.resource(url)) } }) }
+        list += model.profiles.map { profile in LauncherResult(id: profile.id, title: profile.name, subtitle: "Профиль панели", image: nil, symbol: "rectangle.stack.fill", action: { model.applyProfile(profile) }) }
+        list.append(LauncherResult(id: "calendar", title: "Календарь", subtitle: model.calendarAppName, image: nil, symbol: "calendar", action: { model.openCalendar() }))
+        return list.compactMap { result -> (LauncherResult, Int)? in guard let score = AppCatalog.searchScore(query, in: result.title) else { return nil }; return (result, score) }.sorted { a, b in a.1 == b.1 ? a.0.title.localizedStandardCompare(b.0.title) == .orderedAscending : a.1 < b.1 }.prefix(30).map(\.0)
+    }
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) { Image(systemName: "magnifyingglass").font(.system(size: 20)).foregroundStyle(.mint); TextField("Приложение, папка, сайт или профиль…", text: $query).font(.system(size: 17)).textFieldStyle(.plain).focused($focused).onSubmit { runSelected() }; Text("ESC").font(.system(size: 8, design: .monospaced)).foregroundStyle(.secondary).padding(5).background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 5)) }.padding(22)
+            Divider().opacity(0.3)
+            ScrollViewReader { proxy in ScrollView { VStack(spacing: 3) { ForEach(Array(results.enumerated()), id: \.element.id) { index, result in Button { close(); result.action() } label: { HStack(spacing: 12) { if let image = result.image { Image(nsImage: image).resizable().frame(width: 31, height: 31) } else { Image(systemName: result.symbol).foregroundStyle(.mint).frame(width: 31, height: 31) }; VStack(alignment: .leading, spacing: 3) { Text(result.title).font(.system(size: 12, weight: .medium)); Text(result.subtitle).font(.system(size: 9)).foregroundStyle(.secondary) }; Spacer(); if index == selected { Image(systemName: "return").font(.system(size: 12)).foregroundStyle(.secondary) } }.padding(10).background(index == selected ? Color.white.opacity(0.07) : .clear, in: RoundedRectangle(cornerRadius: 10)) }.buttonStyle(.plain).id(index) } }.padding(10) }.onChange(of: selected) { value in proxy.scrollTo(value, anchor: .center) } }
+            if results.isEmpty { Text("Ничего не найдено").font(.system(size: 12)).foregroundStyle(.secondary).padding(30) }
+            Divider().opacity(0.3)
+            HStack { Text("↑ ↓ выбрать    ↵ открыть"); Spacer(); Text(model.launcherShortcutLabel).foregroundStyle(.mint) }.font(.system(size: 9)).foregroundStyle(.secondary).padding(.horizontal, 20).padding(.vertical, 12)
+        }.frame(width: 590, height: 420).background(Color(red: 0.07, green: 0.075, blue: 0.10)).clipShape(RoundedRectangle(cornerRadius: 17)).preferredColorScheme(.dark).onAppear { focused = true }.onChange(of: query) { _ in selected = 0 }.onMoveCommand { direction in if direction == .down { selected = min(selected + 1, results.count - 1) }; if direction == .up { selected = max(0, selected - 1) } }.onExitCommand(perform: close)
+    }
+    private func runSelected() { guard !results.isEmpty else { return }; let item = results[min(max(selected, 0), results.count - 1)]; close(); item.action() }
+}
