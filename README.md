@@ -1,4 +1,4 @@
-# NewMacBar
+# Fashion Hab
 
 NewMacBar 0.3 — бесплатная настраиваемая панель для macOS в духе Dockspace. Нативное приложение на Swift / AppKit / SwiftUI, без подписок, пробного периода и телеметрии.
 
