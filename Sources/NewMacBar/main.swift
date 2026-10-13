@@ -30,6 +30,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var hidden = false
     var hoverDeadline = Date.distantPast
     var screenObserver: NSObjectProtocol?
+    private var globalMouseMonitor: Any?
+    private var localMouseMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -92,7 +94,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         statusItem.menu = menu
         screenObserver = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in self?.updatePanel() }
         preferencesChanged(); panel.orderFrontRegardless()
+        // A nil view hit-test cannot forward a click to another application.
+        // Update the window itself when the pointer crosses its transparent margin.
+        let mouseEvents: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .rightMouseDragged]
+        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: mouseEvents) { [weak self] _ in
+            self?.updateMousePassthrough()
+        }
+        localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: mouseEvents) { [weak self] event in
+            self?.updateMousePassthrough()
+            return event
+        }
         configurePulse()
+        updateMousePassthrough()
         if ProcessInfo.processInfo.arguments.contains("--settings") { showSettings() }
     }
     var screen: NSScreen? { let screens = NSScreen.screens; return screens.isEmpty ? nil : screens[min(max(0, model.screenIndex), screens.count - 1)] }
@@ -107,8 +120,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         } else { panel.setFrame(frame, display: true) }
         bar.frame = NSRect(origin: .zero, size: panel.frame.size)
         bar.refresh()
+        updateMousePassthrough()
         music.preference = model.playerPreference
         if model.widgetKinds.contains("music") { music.refresh() }
+    }
+    func updateMousePassthrough() {
+        guard let panel, let bar else { return }
+        panel.updateMousePassthrough(for: bar, at: NSEvent.mouseLocation)
     }
     func configurePulse() {
         guard lastPulseAutoHide != model.autoHide else { return }
@@ -117,6 +135,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         timer?.tolerance = model.autoHide ? 0.02 : 0.15
     }
     func pulse() {
+        updateMousePassthrough()
         let now = Date()
         if model.widgetKinds.contains("music"), (!hidden || musicPopover?.isShown == true), now.timeIntervalSince(lastMusicPoll) >= (musicPopover?.isShown == true ? 1 : 4) { lastMusicPoll = now; music.refresh() }
         if model.calendarEventsEnabled { agenda.refresh() }
@@ -147,7 +166,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             popover.contentSize = NSSize(width: 350, height: 280)
             musicPopover = popover
         }
-        music.refresh(force: true); musicPopover?.show(relativeTo: rect, of: bar, preferredEdge: .maxY)
+        music.refresh(force: true, requestPermission: true); musicPopover?.show(relativeTo: rect, of: bar, preferredEdge: .maxY)
     }
     func preferencesChanged() {
         configurePulse()
@@ -189,7 +208,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func selectProfile(_ sender: NSMenuItem) { if let profile = sender.representedObject as? DockProfile { model.applyProfile(profile) } }
     func closePopovers() { musicPopover?.close(); calendarPopover?.close(); collectionPopover?.close() }
     @objc func handleActivation(_ notification: Notification) { showSettings() }
-    func applicationWillTerminate(_ notification: Notification) { if ownsSession { dock.restore() }; DistributedNotificationCenter.default().removeObserver(self) }
+    func applicationWillTerminate(_ notification: Notification) {
+        timer?.invalidate()
+        if let globalMouseMonitor { NSEvent.removeMonitor(globalMouseMonitor) }
+        if let localMouseMonitor { NSEvent.removeMonitor(localMouseMonitor) }
+        if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
+        if ownsSession { dock.restore() }
+        DistributedNotificationCenter.default().removeObserver(self)
+    }
     @objc func showLauncher() {
         if searchPanel?.isVisible == true { searchPanel?.orderOut(nil); return }
         closePopovers(); catalog.refresh()
@@ -283,6 +309,7 @@ func runSelfTests() {
 }
 
 if CommandLine.arguments.contains("--self-test") { runSelfTests() }
+else if CommandLine.arguments.contains("--panel-self-test") { runPanelSelfTests() }
 else if CommandLine.arguments.contains("--diagnostics") {
     for instance in NSWorkspace.shared.runningApplications where instance.bundleIdentifier == "app.newmacbar.desktop" {
         print("NewMacBar pid=\(instance.processIdentifier) terminated=\(instance.isTerminated) path=\(instance.bundleURL?.path ?? "unknown")")

@@ -1,4 +1,5 @@
 import AppKit
+import Carbon
 
 struct MusicSnapshot {
     var title: String
@@ -61,9 +62,19 @@ final class MusicController: ObservableObject {
         playing = false; position = 0; duration = 0; activePlayerID = nil; permissionDenied = false
         title = "Музыка"; artist = "Открой Spotify или Music"; retryAfter = .distantPast; onChange?()
     }
-    func refresh(force: Bool = false) {
+    func refresh(force: Bool = false, requestPermission: Bool = false) {
         guard inFlight == nil, force || Date() >= retryAfter else { return }
         guard let id = playerID else { if activePlayerID != nil || playing { clear() }; return }
+        let target = NSAppleEventDescriptor(bundleIdentifier: id)
+        guard let address = target.aeDesc else { return }
+        // Background polling must never present an Automation consent prompt.
+        let permission = AEDeterminePermissionToAutomateTarget(address, typeWildCard, typeWildCard, false)
+        if permission != noErr && !requestPermission {
+            activePlayerID = id; permissionDenied = true; playing = false
+            title = "Нет доступа к плееру"; artist = "Нажми на виджет, чтобы подключить плеер"
+            retryAfter = Date().addingTimeInterval(30); onChange?()
+            return
+        }
         let request = UUID(); inFlight = request; let currentGeneration = generation
         let durationExpression = id == "com.spotify.client" ? "((duration of current track) / 1000)" : "(duration of current track)"
         let artExpression = id == "com.spotify.client" ? "artwork url of current track" : "raw data of artwork 1 of current track"

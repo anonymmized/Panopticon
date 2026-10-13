@@ -80,3 +80,43 @@ func runRegressionTests(defaults: UserDefaults, model: BarModel) throws {
     missing.restore(); precondition(defaults.dictionary(forKey: "systemDockBackup") == nil, "Successful restoration deletes backup")
     print("PASS: geometry, nested updates, profile editing/import, preference recovery, shortcut editing, keyboard layouts, month boundaries, player metadata, persisted timers, Dock recovery")
 }
+
+
+func runPanelSelfTests() {
+    _ = NSApplication.shared
+    let suite = "app.newmacbar.paneltest.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(["/System/Library/CoreServices/Finder.app"], forKey: "pinned")
+    let model = BarModel(defaults: defaults, observe: false)
+    model.showRunning = false
+    let bar = BarView(model: model, music: MusicController(), focus: FocusTimer(defaults: defaults),
+                      agenda: CalendarController())
+    let panel = BarPanel(contentRect: NSRect(x: 100, y: 100, width: 600, height: 140),
+                         styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+    panel.isReleasedWhenClosed = false
+    let root = PassthroughView(frame: NSRect(x: 0, y: 0, width: 600, height: 140))
+    panel.contentView = root
+    bar.frame = root.bounds
+    root.addSubview(bar.glass)
+    root.addSubview(bar)
+    bar.refresh()
+    precondition(bar.acceptsFirstMouse(for: nil), "Inactive-app first click")
+    precondition(!panel.canBecomeKey && !panel.canBecomeMain, "Dock must not steal keyboard focus")
+    let inside = NSPoint(x: bar.barRect.midX, y: bar.barRect.midY)
+    panel.updateMousePassthrough(for: bar, at: panel.convertPoint(toScreen: inside))
+    precondition(!panel.ignoresMouseEvents, "Visible bar must receive clicks")
+    precondition(root.hitTest(inside) === bar, "Glass must not swallow icon events")
+    let outside = NSPoint(x: 300, y: 130)
+    panel.updateMousePassthrough(for: bar, at: panel.convertPoint(toScreen: outside))
+    precondition(panel.ignoresMouseEvents, "Transparent margin must pass through to other apps")
+    precondition(root.hitTest(outside) == nil, "Transparent margin view hit-test")
+    panel.updateMousePassthrough(for: bar, at: panel.convertPoint(toScreen: inside))
+    precondition(!panel.ignoresMouseEvents, "Pointer re-entry restores interaction")
+    let event = NSEvent.mouseEvent(with: .rightMouseDown, location: inside, modifierFlags: [],
+                                  timestamp: 0, windowNumber: panel.windowNumber, context: nil,
+                                  eventNumber: 1, clickCount: 1, pressure: 1)!
+    precondition(bar.menu(for: event)?.items.contains { $0.title == "Настройки NewMacBar…" } == true,
+                 "Native right-click menu")
+    print("PASS: panel passthrough, re-entry, first click, glass hit-test, focus and native menu")
+}

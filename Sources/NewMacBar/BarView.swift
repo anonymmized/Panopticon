@@ -17,6 +17,12 @@ final class PassthroughView: NSView {
 final class BarPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
+
+    func updateMousePassthrough(for bar: BarView, at screenPoint: NSPoint) {
+        let point = bar.convert(convertPoint(fromScreen: screenPoint), from: nil)
+        let ignores = !bar.containsInteractivePoint(point)
+        if ignoresMouseEvents != ignores { ignoresMouseEvents = ignores }
+    }
 }
 
 final class BarView: NSView, NSDraggingSource {
@@ -329,8 +335,14 @@ final class BarView: NSView, NSDraggingSource {
     private func hitItem(_ point: NSPoint) -> Int? { BarGeometry.nearest(point, frames: frames) }
     override func hitTest(_ point: NSPoint) -> NSView? {
         let local = convert(point, from: superview)
-        return barRect.contains(local) || frames.contains(where: { $0.contains(local) }) ? self : nil
+        return containsInteractivePoint(local) ? self : nil
     }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    func containsInteractivePoint(_ point: NSPoint) -> Bool {
+        barRect.contains(point) || frames.contains { $0.contains(point) }
+    }
+
     override func mouseDown(with event: NSEvent) {
         downPoint = convert(event.locationInWindow, from: nil); downIndex = downPoint.flatMap(hitItem)
     }

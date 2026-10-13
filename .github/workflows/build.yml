@@ -1,0 +1,26 @@
+name: macOS build
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Release build
+        run: swift build -c release
+      - name: Regression tests
+        run: |
+          .build/release/NewMacBar --self-test
+          .build/release/NewMacBar --panel-self-test
+      - name: Package and verify app
+        run: ./build.sh
+      - name: Archive app
+        run: ditto -c -k --keepParent build/NewMacBar.app build/NewMacBar.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NewMacBar
+          path: build/NewMacBar.zip

@@ -3,3 +3,7 @@ build/module-cache*/
 build/AppIcon.iconset/
 build/.staging.*/
 build/.previous.*/
+.build/
+.swiftpm/
+build.log
+build/*.zip
