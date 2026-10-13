@@ -1,8 +1,10 @@
 import AppKit
 
 final class BarAccessibilityButton: NSAccessibilityElement {
+    var frameProvider: (() -> NSRect)?
+    override func accessibilityFrame() -> NSRect { frameProvider?() ?? super.accessibilityFrame() }
     var press: (() -> Void)?
-    override func accessibilityPerformPress() -> Bool { press?(); return true }
+    override func accessibilityPerformPress() -> Bool { guard let press else { return false }; press(); return true }
 }
 
 final class PassthroughView: NSView {
@@ -37,6 +39,9 @@ final class BarView: NSView, NSDraggingSource {
     private var dropTarget: Int?
     private var insertion: Int?
     private var draggedID: String?
+    private var collectionIcons: [[NSImage]] = []
+    private var lastItems: [String] = []
+    private var lastBase: CGFloat = 0
     private var icons: [String: NSImage] = [:]
     private(set) var barRect: NSRect = .zero
     private var widgetRect: NSRect = .zero
@@ -50,7 +55,8 @@ final class BarView: NSView, NSDraggingSource {
     private var widgetWidth: CGFloat { model.widgetKinds.isEmpty ? 0 : (model.widgetStyle == "compact" ? CGFloat(model.iconSize + 4) : CGFloat(model.widgetWidth)) }
     private var widgetTotalWidth: CGFloat { CGFloat(model.widgetKinds.count) * widgetWidth + CGFloat(max(0, model.widgetKinds.count - 1)) * 8 }
     private var motionReduced: Bool { model.reduceMotion || NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
-    var preferredWidth: CGFloat { CGFloat(model.items.count + model.collections.count + model.quickLinks.count) * step + widgetTotalWidth + (widgetWidth > 0 ? 12 : 0) + (model.showSettingsButton ? 50 : 24) }
+    private var baseWidth: CGFloat { CGFloat(model.items.count + model.collections.count + model.quickLinks.count) * step + widgetTotalWidth + (widgetWidth > 0 ? 12 : 0) + (model.showSettingsButton ? 50 : 24) }
+    var preferredWidth: CGFloat { baseWidth + (motionReduced || model.hoverStyle == "none" || model.items.isEmpty ? 0 : CGFloat(model.iconSize * (model.magnification - 1) * 2.5)) }
     var preferredHeight: CGFloat { CGFloat(model.iconSize) * CGFloat(model.magnification) + CGFloat(model.hoverLift) + 48 }
 
     init(model: BarModel, music: MusicController, focus: FocusTimer, agenda: CalendarController) {
@@ -79,7 +85,10 @@ final class BarView: NSView, NSDraggingSource {
     func refresh() {
         glass.appearance = NSAppearance(named: model.theme == "light" ? .aqua : .darkAqua)
         appearance = NSAppearance(named: model.theme == "light" ? .aqua : .darkAqua)
-        sizes = Array(repeating: CGFloat(model.iconSize), count: model.items.count)
+        let ids = model.items.map(\.id)
+        if ids != lastItems || lastBase != CGFloat(model.iconSize) { sizes = Array(repeating: CGFloat(model.iconSize), count: model.items.count) }
+        lastItems = ids; lastBase = CGFloat(model.iconSize)
+        collectionIcons = model.collections.map { $0.items.prefix(4).map(\.icon) }
         layoutIcons(); updateAccessibility(); needsDisplay = true
     }
     private func updateAccessibility() {
@@ -90,6 +99,7 @@ final class BarView: NSView, NSDraggingSource {
             element.setAccessibilityLabel(item.name + (model.isRunning(item) ? " — запущено" : ""))
             element.setAccessibilityParent(self)
             element.setAccessibilityFrame(window?.convertToScreen(convert(frames[index], to: nil)) ?? frames[index])
+            element.frameProvider = { [weak self] in guard let self, index < self.frames.count else { return .zero }; return self.screenRect(self.frames[index]) }
             element.press = { [weak self] in self?.activate(item) }
             elements.append(element)
         }
@@ -97,12 +107,14 @@ final class BarView: NSView, NSDraggingSource {
         settings.setAccessibilityRole(.button); settings.setAccessibilityEnabled(true); settings.setAccessibilityLabel("Настройки NewMacBar")
         settings.setAccessibilityParent(self)
         settings.setAccessibilityFrame(window?.convertToScreen(convert(settingsRect, to: nil)) ?? settingsRect)
+        settings.frameProvider = { [weak self] in guard let self else { return .zero }; return self.screenRect(self.settingsRect) }
         settings.press = { [weak self] in self?.openSettings?() }
         if model.showSettingsButton { elements.append(settings) }
         for (index, collection) in model.collections.enumerated() where index < collectionFrames.count {
             let element = BarAccessibilityButton(); element.setAccessibilityRole(.button); element.setAccessibilityEnabled(true)
             element.setAccessibilityLabel("Коллекция " + collection.name); element.setAccessibilityParent(self)
             element.setAccessibilityFrame(window?.convertToScreen(convert(collectionFrames[index], to: nil)) ?? collectionFrames[index])
+            element.frameProvider = { [weak self] in guard let self, index < self.collectionFrames.count else { return .zero }; return self.screenRect(self.collectionFrames[index]) }
             element.press = { [weak self] in guard let self else { return }; self.openCollection?(collection, self.collectionFrames[index]) }
             elements.append(element)
         }
@@ -110,6 +122,7 @@ final class BarView: NSView, NSDraggingSource {
             let element = BarAccessibilityButton(); element.setAccessibilityRole(.button); element.setAccessibilityEnabled(true)
             element.setAccessibilityLabel(link.name); element.setAccessibilityParent(self)
             element.setAccessibilityFrame(window?.convertToScreen(convert(linkFrames[index], to: nil)) ?? linkFrames[index])
+            element.frameProvider = { [weak self] in guard let self, index < self.linkFrames.count else { return .zero }; return self.screenRect(self.linkFrames[index]) }
             element.press = { if let url = link.url { ActionRouter.open(.resource(url)) } }; elements.append(element)
         }
         for (kind, rect) in zip(model.widgetKinds, widgetFrames) {
@@ -117,14 +130,17 @@ final class BarView: NSView, NSDraggingSource {
             let label = ["music": "Открыть музыкальный плеер", "clock": "Часы", "calendar": "Календарь и события", "timer": "Таймер фокуса"][kind] ?? "Виджет"
             widget.setAccessibilityLabel(label); widget.setAccessibilityParent(self)
             widget.setAccessibilityFrame(window?.convertToScreen(convert(rect, to: nil)) ?? rect)
-            widget.press = { [weak self] in self?.activateWidget(kind, rect: rect) }; elements.append(widget)
+            widget.frameProvider = { [weak self] in guard let self, let i = self.model.widgetKinds.firstIndex(of: kind), i < self.widgetFrames.count else { return .zero }; return self.screenRect(self.widgetFrames[i]) }
+            widget.press = { [weak self] in guard let self, let i = self.model.widgetKinds.firstIndex(of: kind), i < self.widgetFrames.count else { return }; self.activateWidget(kind, rect: self.widgetFrames[i]) }; elements.append(widget)
         }
         setAccessibilityChildren(elements)
     }
+    private func screenRect(_ rect: NSRect) -> NSRect { window?.convertToScreen(convert(rect, to: nil)) ?? rect }
     override func layout() { super.layout(); layoutIcons() }
     private func layoutIcons() {
         let base = CGFloat(model.iconSize)
-        let naturalWidth = preferredWidth
+        let extra = sizes.reduce(0) { $0 + max(0, $1 - base) }
+        let naturalWidth = baseWidth + extra
         let fit = min(1, (bounds.width - 8) / max(naturalWidth, 1))
         let barWidth = naturalWidth * fit
         barRect = NSRect(x: (bounds.width - barWidth) / 2, y: 5, width: barWidth, height: (base + 18) * fit)
@@ -135,15 +151,11 @@ final class BarView: NSView, NSDraggingSource {
         glass.layer?.backgroundColor = (model.theme == "light" ? NSColor.white : NSColor.black).withAlphaComponent(model.opacity).cgColor
         let items = model.items
         if sizes.count != items.count { sizes = Array(repeating: base, count: items.count) }
-        frames = items.indices.map { i in
-            let centerX = barRect.minX + (12 + base / 2 + CGFloat(i) * step) * fit
-            let size = sizes[i] * fit
-            let lift = model.hoverStyle == "lift" ? (size / max(base * fit, 1) - 1) * CGFloat(model.hoverLift) * 2 : 0
-            return NSRect(x: centerX - size / 2, y: barRect.minY + 10 * fit + lift, width: size, height: size)
-        }
-        collectionFrames = model.collections.indices.map { i in NSRect(x: barRect.minX + (12 + CGFloat(items.count + i) * step) * fit, y: barRect.minY + 10 * fit, width: base * fit, height: base * fit) }
-        linkFrames = model.quickLinks.indices.map { i in NSRect(x: barRect.minX + (12 + CGFloat(items.count + model.collections.count + i) * step) * fit, y: barRect.minY + 10 * fit, width: base * fit, height: base * fit) }
-        let widgetX = barRect.minX + (CGFloat(items.count + model.collections.count + model.quickLinks.count) * step + 16) * fit
+        frames = BarGeometry.frames(sizes: sizes, spacing: CGFloat(model.iconSpacing), origin: NSPoint(x: barRect.minX + 12 * fit, y: barRect.minY + 10 * fit), scale: fit, base: base, lift: model.hoverStyle == "lift" ? CGFloat(model.hoverLift) : 0)
+        let appEnd = sizes.reduce(CGFloat(12)) { $0 + $1 + CGFloat(model.iconSpacing) }
+        collectionFrames = model.collections.indices.map { i in NSRect(x: barRect.minX + (appEnd + CGFloat(i) * step) * fit, y: barRect.minY + 10 * fit, width: base * fit, height: base * fit) }
+        linkFrames = model.quickLinks.indices.map { i in NSRect(x: barRect.minX + (appEnd + CGFloat(model.collections.count + i) * step) * fit, y: barRect.minY + 10 * fit, width: base * fit, height: base * fit) }
+        let widgetX = barRect.minX + (appEnd + CGFloat(model.collections.count + model.quickLinks.count) * step + 4) * fit
         widgetFrames = model.widgetKinds.indices.map { i in NSRect(x: widgetX + CGFloat(i) * (widgetWidth + 8) * fit, y: barRect.minY + 7 * fit, width: widgetWidth * fit, height: (base + 4) * fit) }
         widgetRect = widgetFrames.first ?? .zero
         settingsRect = NSRect(x: barRect.maxX - 34 * fit, y: barRect.midY - 12 * fit, width: 24 * fit, height: 24 * fit)
@@ -154,7 +166,7 @@ final class BarView: NSView, NSDraggingSource {
         animation?.tolerance = 0.002
     }
     private func animate() {
-        guard window != nil else { return }
+        guard window != nil else { animation?.invalidate(); animation = nil; return }
         let base = CGFloat(model.iconSize)
         var changed = false
         for i in sizes.indices where i < frames.count {
@@ -201,11 +213,11 @@ final class BarView: NSView, NSDraggingSource {
         for (index, collection) in model.collections.enumerated() where index < collectionFrames.count {
             let rect = collectionFrames[index]
             foreground.withAlphaComponent(0.07).setFill(); NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10).fill()
-            let apps = collection.items
-            if apps.isEmpty { drawSymbol(collection.symbol, in: rect.insetBy(dx: 9, dy: 9), color: accentColor) }
-            for (i, item) in apps.prefix(4).enumerated() {
+            let images = index < collectionIcons.count ? collectionIcons[index] : []
+            if images.isEmpty { drawSymbol(collection.symbol, in: rect.insetBy(dx: 9, dy: 9), color: accentColor) }
+            for (i, image) in images.enumerated() {
                 let side = rect.width * 0.35
-                item.icon.draw(in: NSRect(x: rect.minX + 4 + CGFloat(i % 2) * (side + 3), y: rect.maxY - side - 4 - CGFloat(i / 2) * (side + 3), width: side, height: side))
+                image.draw(in: NSRect(x: rect.minX + 4 + CGFloat(i % 2) * (side + 3), y: rect.maxY - side - 4 - CGFloat(i / 2) * (side + 3), width: side, height: side))
             }
         }
         for (index, link) in model.quickLinks.enumerated() where index < linkFrames.count {
@@ -222,7 +234,7 @@ final class BarView: NSView, NSDraggingSource {
         if model.showLabels, let point = pointer, let index = hitItem(point), index < items.count, draggedID == nil {
             let name = items[index].name
             let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11, weight: .medium), .foregroundColor: foreground]
-            let width = (name as NSString).size(withAttributes: attributes).width + 22
+            let width = min((name as NSString).size(withAttributes: attributes).width + 22, bounds.width - 4)
             let x = min(max(frames[index].midX - width / 2, 2), bounds.width - width - 2)
             let labelRect = NSRect(x: x, y: min(frames[index].maxY + 9, bounds.height - 29), width: width, height: 25)
             (model.theme == "light" ? NSColor.white : NSColor(white: 0.14, alpha: 0.95)).setFill()
@@ -250,8 +262,22 @@ final class BarView: NSView, NSDraggingSource {
         let compact = model.widgetStyle == "compact"
         let r = rect
         if compact {
-            if kind == "music", let image = music.artwork { NSGraphicsContext.saveGraphicsState(); NSBezierPath(roundedRect: r.insetBy(dx: 3, dy: 3), xRadius: 8, yRadius: 8).addClip(); image.draw(in: r.insetBy(dx: 3, dy: 3)); NSGraphicsContext.restoreGraphicsState() }
-            else { drawSymbol(kind == "music" ? "music.note" : (kind == "timer" ? "timer" : (kind == "calendar" ? "calendar" : "clock")), in: r.insetBy(dx: 10, dy: 10), color: foreground) }
+            if kind == "music" {
+                if let image = music.artwork { NSGraphicsContext.saveGraphicsState(); NSBezierPath(roundedRect: r.insetBy(dx: 3, dy: 3), xRadius: 8, yRadius: 8).addClip(); image.draw(in: r.insetBy(dx: 3, dy: 3)); NSGraphicsContext.restoreGraphicsState() }
+                else { drawSymbol("music.note", in: r.insetBy(dx: 10, dy: 10), color: foreground) }
+            } else if kind == "calendar" {
+                let f = DateFormatter(); f.locale = Locale(identifier: "ru_RU"); f.dateFormat = "MMM"
+                drawText(f.string(from: Date()).uppercased(), in: NSRect(x: r.minX + 6, y: r.maxY - 12, width: r.width - 8, height: 9), font: .systemFont(ofSize: 6.5, weight: .bold), color: foreground.withAlphaComponent(0.6))
+                f.dateFormat = "d"; drawText(f.string(from: Date()), in: NSRect(x: r.minX + 9, y: r.minY + 4, width: r.width - 12, height: 25), font: .systemFont(ofSize: 21, weight: .semibold), color: foreground)
+            } else if kind == "timer" {
+                let path = NSBezierPath(ovalIn: r.insetBy(dx: 5, dy: 5)); foreground.withAlphaComponent(0.2).setStroke(); path.lineWidth = 1.5; path.stroke()
+                let progress = NSBezierPath(); progress.appendArc(withCenter: NSPoint(x: r.midX, y: r.midY), radius: max(4, r.height / 2 - 5), startAngle: 90, endAngle: 90 - CGFloat(focus.progress) * 360, clockwise: true); foreground.setStroke(); progress.lineWidth = 2; progress.stroke()
+                drawText(focus.text, in: NSRect(x: r.minX + 5, y: r.midY - 5, width: r.width - 6, height: 11), font: .monospacedDigitSystemFont(ofSize: 8, weight: .semibold), color: foreground)
+            } else {
+                let f = DateFormatter(); f.dateFormat = model.clockFormat == "12h" ? "h" : "HH"
+                drawText(f.string(from: Date()), in: NSRect(x: r.minX + 10, y: r.midY - 1, width: r.width - 10, height: 19), font: .monospacedDigitSystemFont(ofSize: 14, weight: .semibold), color: foreground)
+                f.dateFormat = "mm"; drawText(f.string(from: Date()), in: NSRect(x: r.minX + 10, y: r.minY + 4, width: r.width - 10, height: 17), font: .monospacedDigitSystemFont(ofSize: 12, weight: .medium), color: foreground.withAlphaComponent(0.65))
+            }
             return
         }
         if kind == "calendar" {
@@ -300,7 +326,7 @@ final class BarView: NSView, NSDraggingSource {
         guard let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(.init(paletteColors: [color])) else { return }
         image.draw(in: rect)
     }
-    private func hitItem(_ point: NSPoint) -> Int? { frames.indices.first { frames[$0].insetBy(dx: -4, dy: -6).contains(point) } }
+    private func hitItem(_ point: NSPoint) -> Int? { BarGeometry.nearest(point, frames: frames) }
     override func hitTest(_ point: NSPoint) -> NSView? {
         let local = convert(point, from: superview)
         return barRect.contains(local) || frames.contains(where: { $0.contains(local) }) ? self : nil

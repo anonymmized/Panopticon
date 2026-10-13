@@ -26,7 +26,7 @@ final class BarModel: ObservableObject {
     @Published var opacity: Double { didSet { save() } }
     @Published var showRunning: Bool { didSet { save() } }
     @Published var autoHide: Bool { didSet { save() } }
-    @Published var widget: String { didSet { save() } }
+    @Published var widget: String { didSet { if secondaryWidget == widget && widget != "none" { batch { secondaryWidget = "none" } } else { save() } } }
     @Published var theme: String { didSet { save() } }
     @Published var screenIndex: Int { didSet { save() } }
     @Published var iconSpacing: Double { didSet { save() } }
@@ -52,7 +52,7 @@ final class BarModel: ObservableObject {
     @Published var calendarAppPath: String { didSet { save() } }
     @Published var calendarWebURL: String { didSet { save() } }
     @Published var clockAction: String { didSet { save() } }
-    @Published var secondaryWidget: String { didSet { save() } }
+    @Published var secondaryWidget: String { didSet { if secondaryWidget == widget { secondaryWidget = "none" }; save() } }
     @Published var calendarEventsEnabled: Bool { didSet { save() } }
     @Published var launcherShortcutChoice: String { didSet { save() } }
     @Published var launcherShortcutAvailable = false
@@ -64,7 +64,8 @@ final class BarModel: ObservableObject {
     @Published var selectedCalendarIDs: [String] = []
     @Published private(set) var items: [DockItem] = []
     var activeBundleID: String?
-    private var batching = false
+    private var batchDepth = 0
+    @Published private(set) var recentAppPaths: [String] = []
     var onChange: (() -> Void)?
     private var observers: [NSObjectProtocol] = []
 
@@ -116,6 +117,17 @@ final class BarModel: ObservableObject {
         } else {
             pinned = Self.systemDockItems()
         }
+        recentAppPaths = defaults.stringArray(forKey: "recentAppPaths") ?? []
+        batch {
+            ProfileAppearance(self).sanitized().apply(to: self)
+            timerMinutes = SettingsRules.number(timerMinutes, 5...90, fallback: 25)
+            screenIndex = max(0, screenIndex)
+            clockFormat = SettingsRules.choice(clockFormat, ["12h", "24h"], fallback: "24h")
+            playerPreference = SettingsRules.choice(playerPreference, ["auto", "spotify", "music"], fallback: "auto")
+            clockAction = SettingsRules.choice(clockAction, ["open", "agenda"], fallback: "open")
+            calendarDestination = SettingsRules.choice(calendarDestination, ["system", "app", "web"], fallback: "system")
+            launcherShortcutChoice = SettingsRules.choice(launcherShortcutChoice, ["controlOptionSpace", "commandShiftSpace", "optionShiftSpace"], fallback: "controlOptionSpace")
+        }
         if observe {
             let nc = NSWorkspace.shared.notificationCenter
             for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification, NSWorkspace.didActivateApplicationNotification] {
@@ -131,6 +143,7 @@ final class BarModel: ObservableObject {
         for tile in tiles {
             guard let data = tile["tile-data"] as? [String: Any], let file = data["file-data"] as? [String: Any], let path = file["_CFURLString"] as? String, let url = URL(string: path), url.isFileURL, FileManager.default.fileExists(atPath: url.path) else { continue }
             let item = DockItem(url: url)
+            guard item.bundleID != nil, url.pathExtension.lowercased() == "app" else { continue }
             if !result.contains(where: { $0.id == item.id }) { result.append(item) }
         }
         if result.isEmpty {
@@ -152,7 +165,11 @@ final class BarModel: ObservableObject {
         if list != items { items = list }
         activeBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
     }
-    func batch(_ body: () -> Void) { batching = true; body(); batching = false; save() }
+    func batch(_ body: () -> Void) {
+        batchDepth += 1; body(); batchDepth -= 1
+        if batchDepth == 0 { save() }
+    }
+    deinit { for observer in observers { NSWorkspace.shared.notificationCenter.removeObserver(observer) } }
     func refreshRunning() {
         running = NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular }
         rebuildItems(); onChange?()
@@ -161,7 +178,7 @@ final class BarModel: ObservableObject {
     func add(_ url: URL, at index: Int? = nil) {
         guard url.pathExtension.lowercased() == "app", let bundle = Bundle(url: url), bundle.bundleIdentifier != nil else { return }
         let item = DockItem(url: url)
-        guard !pinned.contains(where: { $0.id == item.id }) else { return }
+        guard !pinned.contains(where: { $0.id == item.id || ($0.bundleID != nil && $0.bundleID == item.bundleID) }) else { return }
         pinned.insert(item, at: min(max(index ?? pinned.count, 0), pinned.count))
         save()
     }
@@ -175,6 +192,10 @@ final class BarModel: ObservableObject {
         save()
     }
     func updateCollection(_ collection: AppCollection) {
+        var collection = collection; collection.name = SettingsRules.label(collection.name)
+        guard !collection.name.isEmpty else { return }
+        var seen = Set<String>()
+        collection.paths = collection.paths.filter { seen.insert($0).inserted }
         if let index = collections.firstIndex(where: { $0.id == collection.id }) { collections[index] = collection }
         else { collections.append(collection) }
         save()
@@ -182,7 +203,7 @@ final class BarModel: ObservableObject {
     func removeCollection(_ id: String) { collections.removeAll { $0.id == id }; save() }
     func importDock() { pinned = Self.systemDockItems(); save() }
     func save() {
-        guard !batching else { return }
+        guard batchDepth == 0 else { return }
         rebuildItems()
         defaults.set(calendarDestination, forKey: "calendarDestination")
         defaults.set(calendarAppPath, forKey: "calendarAppPath")
@@ -224,80 +245,11 @@ final class BarModel: ObservableObject {
         onChange?()
     }
     func launch(_ item: DockItem) {
-        if let app = running.first(where: { $0.bundleIdentifier == item.bundleID }) { app.activate(options: [.activateAllWindows]); return }
+        recentAppPaths.removeAll { $0 == item.id }; recentAppPaths.insert(item.id, at: 0)
+        recentAppPaths = Array(recentAppPaths.prefix(12)); defaults.set(recentAppPaths, forKey: "recentAppPaths")
+        if let app = running.first(where: { $0.bundleIdentifier == item.bundleID }) { if app.activate(options: [.activateAllWindows]) { return } }
         NSWorkspace.shared.openApplication(at: item.url, configuration: NSWorkspace.OpenConfiguration()) { _, error in
             if let error { DispatchQueue.main.async { let alert = NSAlert(error: error); alert.runModal() } }
-        }
-    }
-}
-
-final class MusicController: ObservableObject {
-    @Published var title = "Музыка"
-    @Published var artist = "Spotify / Apple Music"
-    @Published var playing = false
-    @Published var position: Double = 0
-    @Published var duration: Double = 0
-    var onChange: (() -> Void)?
-    private let queue = DispatchQueue(label: "NewMacBar.music")
-    private var busy = false
-    var preference = "auto"
-    @Published var artwork: NSImage?
-    private var artworkURL: String?
-    var playerID: String? {
-        let apps = NSWorkspace.shared.runningApplications
-        let candidates = preference == "spotify" ? ["com.spotify.client"] : (preference == "music" ? ["com.apple.Music"] : ["com.spotify.client", "com.apple.Music"])
-        return candidates.first { id in apps.contains { $0.bundleIdentifier == id } }
-    }
-    func refresh() {
-        guard !busy else { return }
-        guard let id = playerID else { title = "Музыка"; artist = "Открой Spotify или Music"; playing = false; position = 0; duration = 0; artwork = nil; artworkURL = nil; onChange?(); return }
-        busy = true
-        let durationExpression = id == "com.spotify.client" ? "((duration of current track) / 1000)" : "(duration of current track)"
-        let artworkExpression = id == "com.spotify.client" ? "(artwork url of current track)" : "\"\""
-        let source = """
-        tell application id "\(id)"
-            if player state is stopped then return "Музыка|||Ничего не играет|||stopped"
-            return (name of current track) & "|||" & (artist of current track) & "|||" & (player state as string) & "|||" & (player position as string) & "|||" & (\(durationExpression) as string) & "|||" & \(artworkExpression)
-        end tell
-        """
-        queue.async { [weak self] in
-            var error: NSDictionary?
-            let value = NSAppleScript(source: source)?.executeAndReturnError(&error).stringValue
-            let failed = error != nil
-            DispatchQueue.main.async {
-                guard let self else { return }; self.busy = false
-                let parts = value?.components(separatedBy: "|||") ?? []
-                if parts.count >= 3 { self.title = parts[0]; self.artist = parts[1]; self.playing = parts[2] == "playing"; self.position = parts.count > 3 ? Double(parts[3].replacingOccurrences(of: ",", with: ".")) ?? 0 : 0; self.duration = parts.count > 4 ? Double(parts[4].replacingOccurrences(of: ",", with: ".")) ?? 0 : 0 }
-                else { self.title = "Нет доступа к плееру"; self.artist = failed ? "Разреши Автоматизацию в macOS" : "Ничего не играет"; self.playing = false }
-                if parts.count > 5 { self.loadArtwork(parts[5]) }
-                else { self.artwork = nil; self.artworkURL = nil }
-                self.onChange?()
-            }
-        }
-    }
-    private func loadArtwork(_ path: String) {
-        guard artworkURL != path else { return }
-        artworkURL = path; artwork = nil
-        guard let url = URL(string: path), url.scheme == "https" else { return }
-        URLSession.shared.dataTask(with: url) { [weak self] data, response, _ in
-            guard let data, data.count < 8_000_000, let response = response as? HTTPURLResponse, response.statusCode == 200 else { return }
-            DispatchQueue.main.async {
-                guard let self, self.artworkURL == path else { return }
-                self.artwork = NSImage(data: data); self.onChange?()
-            }
-        }.resume()
-    }
-    func seek(_ seconds: Double) { command("set player position to \(max(0, min(seconds, duration)))") }
-    func command(_ command: String) {
-        guard let id = playerID else {
-            let preferred = preference == "music" ? "com.apple.Music" : "com.spotify.client"
-            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: preferred) ?? (preference == "auto" ? NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Music") : nil) { NSWorkspace.shared.open(url) }
-            return
-        }
-        queue.async { [weak self] in
-            var error: NSDictionary?
-            NSAppleScript(source: "tell application id \"\(id)\" to \(command)")?.executeAndReturnError(&error)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { self?.refresh() }
         }
     }
 }

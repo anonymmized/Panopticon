@@ -7,7 +7,7 @@ struct QuickLink: Identifiable, Codable, Equatable {
     var destination: String
     var symbol: String { kind == "folder" ? "folder.fill" : "globe" }
     var url: URL? {
-        if kind == "folder" { return destination.isEmpty ? nil : URL(fileURLWithPath: destination) }
+        if kind == "folder" { return destination.hasPrefix("/") ? URL(fileURLWithPath: destination).standardizedFileURL : nil }
         guard let url = URL(string: destination), ["https", "http"].contains(url.scheme?.lowercased() ?? ""), url.host != nil else { return nil }
         return url
     }
@@ -71,12 +71,23 @@ struct ProfileAppearance: Codable, Equatable {
     var widgetWidth: Double
     var widgetOpacity: Double
     var glow: Bool
+    var clockFormat: String?
+    var clockSeconds: Bool?
+    var timerMinutes: Double?
+    var labels: Bool?
+    var separator: Bool?
+    var settingsButton: Bool?
+    var showRunning: Bool?
+    var autoHide: Bool?
+    var reduceMotion: Bool?
     init(_ model: BarModel) {
         iconSize = model.iconSize; spacing = model.iconSpacing; opacity = model.opacity; radius = model.cornerRadius
         magnification = model.magnification; lift = model.hoverLift; bottom = model.bottomOffset
         theme = model.theme; accent = model.widgetAccent; hover = model.hoverStyle; launch = model.launchStyle
         indicator = model.indicatorStyle; widget = model.widget; secondaryWidget = model.secondaryWidget
         widgetStyle = model.widgetStyle; widgetWidth = model.widgetWidth; widgetOpacity = model.widgetOpacity; glow = model.hoverGlow
+        clockFormat = model.clockFormat; clockSeconds = model.clockSeconds; timerMinutes = model.timerMinutes
+        labels = model.showLabels; separator = model.showSeparator; settingsButton = model.showSettingsButton; showRunning = model.showRunning; autoHide = model.autoHide; reduceMotion = model.reduceMotion
     }
     func apply(to model: BarModel) {
         model.iconSize = iconSize; model.iconSpacing = spacing; model.opacity = opacity; model.cornerRadius = radius
@@ -84,6 +95,10 @@ struct ProfileAppearance: Codable, Equatable {
         model.theme = theme; model.widgetAccent = accent; model.hoverStyle = hover; model.launchStyle = launch
         model.indicatorStyle = indicator; model.widget = widget; model.secondaryWidget = secondaryWidget
         model.widgetStyle = widgetStyle; model.widgetWidth = widgetWidth; model.widgetOpacity = widgetOpacity; model.hoverGlow = glow
+        if let clockFormat { model.clockFormat = clockFormat }; if let clockSeconds { model.clockSeconds = clockSeconds }
+        if let timerMinutes { model.timerMinutes = timerMinutes }; if let labels { model.showLabels = labels }
+        if let separator { model.showSeparator = separator }; if let settingsButton { model.showSettingsButton = settingsButton }
+        if let showRunning { model.showRunning = showRunning }; if let autoHide { model.autoHide = autoHide }; if let reduceMotion { model.reduceMotion = reduceMotion }
     }
 }
 
@@ -98,19 +113,55 @@ extension BarModel {
         guard ["folder", "web"].contains(kind), !link.name.isEmpty, link.url != nil, !quickLinks.contains(where: { $0.kind == link.kind && $0.destination == link.destination }) else { return false }
         quickLinks.append(link); save(); return true
     }
+    @discardableResult func updateQuickLink(_ link: QuickLink) -> Bool {
+        var updated = link; updated.name = SettingsRules.label(updated.name)
+        guard !updated.name.isEmpty, updated.url != nil, ["web", "folder"].contains(updated.kind),
+              !quickLinks.contains(where: { $0.id != link.id && $0.kind == link.kind && $0.destination == link.destination }),
+              let i = quickLinks.firstIndex(where: { $0.id == link.id }) else { return false }
+        quickLinks[i] = updated; save(); return true
+    }
+    func moveQuickLink(_ id: String, by offset: Int) {
+        guard let i = quickLinks.firstIndex(where: { $0.id == id }) else { return }
+        let target = min(max(0, i + offset), quickLinks.count - 1)
+        if target != i { quickLinks.swapAt(i, target); save() }
+    }
+    @discardableResult func renameProfile(_ id: String, to name: String) -> Bool {
+        let name = SettingsRules.label(name)
+        guard !name.isEmpty, let i = profiles.firstIndex(where: { $0.id == id }),
+              !profiles.contains(where: { $0.id != id && $0.name.localizedCaseInsensitiveCompare(name) == .orderedSame }) else { return false }
+        profiles[i].name = name; save(); return true
+    }
+    func updateProfile(_ id: String) {
+        guard let i = profiles.firstIndex(where: { $0.id == id }) else { return }
+        profiles[i] = DockProfile(id: id, name: profiles[i].name, pinned: pinned.map(\.id), collections: collections, links: quickLinks, appearance: .init(self)); save()
+    }
+    var matchingProfileID: String? {
+        profiles.first { $0.pinned == pinned.map(\.id) && $0.collections == collections && $0.links == quickLinks && $0.appearance == ProfileAppearance(self) }?.id
+    }
     func removeQuickLink(_ id: String) { quickLinks.removeAll { $0.id == id }; save() }
     func saveProfile(name: String) {
-        let name = name.trimmingCharacters(in: .whitespacesAndNewlines); guard !name.isEmpty else { return }
+        let name = SettingsRules.label(name); guard !name.isEmpty else { return }
         let profile = DockProfile(name: name, pinned: pinned.map(\.id), collections: collections, links: quickLinks, appearance: .init(self))
-        profiles.append(profile); save()
+        if let index = profiles.firstIndex(where: { $0.name.localizedCaseInsensitiveCompare(name) == .orderedSame }) {
+            var replacement = profile; replacement.id = profiles[index].id; profiles[index] = replacement
+        } else { profiles.append(profile) }
+        save()
     }
     func applyProfile(_ profile: DockProfile) {
         batch {
-            pinned = profile.pinned.filter { FileManager.default.fileExists(atPath: $0) }.map { DockItem(url: URL(fileURLWithPath: $0)) }
-            collections = profile.collections; quickLinks = profile.links; profile.appearance.apply(to: self)
+            pinned = profile.pinned.filter { FileManager.default.fileExists(atPath: $0) && Bundle(url: URL(fileURLWithPath: $0))?.bundleIdentifier != nil }.map { DockItem(url: URL(fileURLWithPath: $0)) }
+            collections = profile.collections; quickLinks = profile.links; profile.appearance.sanitized().apply(to: self)
         }
     }
     func deleteProfile(_ id: String) { profiles.removeAll { $0.id == id }; save() }
+    var matchingPreset: String? {
+        guard iconSize == 36, iconSpacing == 8, cornerRadius == 20, hoverStyle == "lift" else { return nil }
+        if theme == "light" && widgetAccent == "blue" && opacity == 0.22 { return "frost" }
+        if theme == "dark" && widgetAccent == "mint" && magnification == 1.4 && hoverGlow { return "aurora" }
+        if theme == "dark" && widgetAccent == "violet" && magnification == 1.55 && hoverLift == 10 { return "electric" }
+        if theme == "dark" && widgetAccent == "neutral" && magnification == 1.2 && !hoverGlow { return "graphite" }
+        return nil
+    }
     func applyPreset(_ preset: String) {
         batch {
             iconSize = 36; iconSpacing = 8; magnification = 1.4; hoverLift = 7; hoverStyle = "lift"

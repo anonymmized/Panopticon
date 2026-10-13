@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let dock = DockIntegration()
     let agenda = CalendarController()
     let catalog = AppCatalog()
+    private var ownsSession = false
     var lastShortcutChoice = ""
     var globalShortcut: GlobalShortcut?
     var searchPanel: SearchPanel?
@@ -32,6 +33,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        let activation = NSNotification.Name("app.newmacbar.desktop.showPreferences")
+        let instances = NSWorkspace.shared.runningApplications.filter { $0.bundleIdentifier == Bundle.main.bundleIdentifier && !$0.isTerminated }
+        let winner = instances.min { a, b in
+            let first = a.launchDate ?? .distantFuture; let second = b.launchDate ?? .distantFuture
+            return first == second ? a.processIdentifier < b.processIdentifier : first < second
+        }
+        if let existing = winner, existing.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+            existing.activate(options: [.activateAllWindows])
+            DistributedNotificationCenter.default().postNotificationName(activation, object: Bundle.main.bundleIdentifier, userInfo: nil, deliverImmediately: true)
+            NSApp.terminate(nil); return
+        }
+        ownsSession = true
+        DistributedNotificationCenter.default().addObserver(self, selector: #selector(handleActivation(_:)), name: activation, object: Bundle.main.bundleIdentifier)
+        lastTimerMinutes = model.timerMinutes
+        if UserDefaults.standard.dictionary(forKey: "focusSession") == nil { focus.reset(minutes: model.timerMinutes) }
         if UserDefaults.standard.integer(forKey: "layoutVersion") < 2 {
             model.iconSize = 36; model.iconSpacing = 8; model.bottomOffset = 4
             model.cornerRadius = 20; model.magnification = 1.35; model.opacity = 0.08
@@ -44,7 +60,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         appMenuItem.submenu = appMenu; mainMenu.addItem(appMenuItem); NSApp.mainMenu = mainMenu
         panel = BarPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isOpaque = false; panel.backgroundColor = .clear; panel.hasShadow = false
-        panel.level = .floating; panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        // Mission Control reveals the native Dock. A stationary panel stays
+        // onscreen there and overlaps it; a transient panel hides for the overview
+        // and AppKit brings it back when the user returns to the desktop.
+        panel.level = .floating
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
         panel.hidesOnDeactivate = false; panel.isReleasedWhenClosed = false
         panel.title = "NewMacBar"
         let root = PassthroughView()
@@ -57,6 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         bar.openMusic = { [weak self] rect in self?.showMusic(rect) }
         model.onChange = { [weak self] in self?.preferencesChanged() }
         bar.openCollection = { [weak self] collection, rect in self?.showCollection(collection, rect) }
+        focus.onChange = { [weak self] in self?.bar.needsDisplay = true }
         music.onChange = { [weak self] in self?.bar.needsDisplay = true }
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(systemSymbolName: "rectangle.bottomthird.inset.filled", accessibilityDescription: "NewMacBar")
@@ -110,7 +131,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         else if !hidden && Date() > hoverDeadline { hidden = true; updatePanel(animated: true) }
     }
     func showAgenda(_ rect: NSRect) {
-        reveal()
+        musicPopover?.close(); collectionPopover?.close(); reveal()
         if calendarPopover == nil {
             let popover = NSPopover(); popover.behavior = .transient
             popover.contentViewController = NSHostingController(rootView: CalendarPopoverView(agenda: agenda, model: model))
@@ -119,14 +140,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         calendarPopover?.show(relativeTo: rect, of: bar, preferredEdge: .maxY)
     }
     func showMusic(_ rect: NSRect) {
-        reveal()
+        calendarPopover?.close(); collectionPopover?.close(); reveal()
         if musicPopover == nil {
             let popover = NSPopover(); popover.behavior = .transient
             popover.contentViewController = NSHostingController(rootView: MusicPopoverView(music: music))
-            popover.contentSize = NSSize(width: 350, height: 225)
+            popover.contentSize = NSSize(width: 350, height: 280)
             musicPopover = popover
         }
-        music.refresh(); musicPopover?.show(relativeTo: rect, of: bar, preferredEdge: .maxY)
+        music.refresh(force: true); musicPopover?.show(relativeTo: rect, of: bar, preferredEdge: .maxY)
     }
     func preferencesChanged() {
         configurePulse()
@@ -148,11 +169,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         updatePanel()
     }
     func showCollection(_ collection: AppCollection, _ rect: NSRect) {
-        reveal()
+        musicPopover?.close(); calendarPopover?.close(); reveal()
         collectionPopover?.close()
         let popover = NSPopover(); popover.behavior = .transient
         popover.contentViewController = NSHostingController(rootView: CollectionPopoverView(collection: collection, model: model))
-        popover.contentSize = NSSize(width: 330, height: 240); collectionPopover = popover
+        popover.contentSize = NSSize(width: 330, height: 270); collectionPopover = popover
         popover.show(relativeTo: rect, of: bar, preferredEdge: .maxY)
     }
     func updateProfileMenu() {
@@ -166,12 +187,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
     @objc func selectProfile(_ sender: NSMenuItem) { if let profile = sender.representedObject as? DockProfile { model.applyProfile(profile) } }
-    func applicationWillTerminate(_ notification: Notification) { dock.restore() }
+    func closePopovers() { musicPopover?.close(); calendarPopover?.close(); collectionPopover?.close() }
+    @objc func handleActivation(_ notification: Notification) { showSettings() }
+    func applicationWillTerminate(_ notification: Notification) { if ownsSession { dock.restore() }; DistributedNotificationCenter.default().removeObserver(self) }
     @objc func showLauncher() {
-        catalog.refresh()
+        if searchPanel?.isVisible == true { searchPanel?.orderOut(nil); return }
+        closePopovers(); catalog.refresh()
         if searchPanel == nil {
             let window = SearchPanel(contentRect: NSRect(x: 0, y: 0, width: 590, height: 420), styleMask: [.borderless], backing: .buffered, defer: false)
-            window.isOpaque = false; window.backgroundColor = .clear; window.hasShadow = true; window.level = .floating
+            window.isOpaque = false; window.backgroundColor = .clear; window.hasShadow = true; window.level = .floating; window.collectionBehavior = [.transient, .ignoresCycle, .fullScreenAuxiliary]
             window.isReleasedWhenClosed = false; searchPanel = window
         }
         searchPanel?.contentView = NSHostingView(rootView: QuickLauncherView(model: model, catalog: catalog, close: { [weak self] in self?.searchPanel?.orderOut(nil) }))
@@ -183,7 +207,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 990, height: 760), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
             window.title = "NewMacBar"; window.titlebarAppearsTransparent = true
             window.backgroundColor = NSColor(red: 0.075, green: 0.085, blue: 0.1, alpha: 1)
-            window.contentView = NSHostingView(rootView: SettingsView(model: model, dock: dock, focus: focus, agenda: agenda)); window.minSize = NSSize(width: 920, height: 680)
+            window.contentView = NSHostingView(rootView: SettingsView(model: model, dock: dock, focus: focus, catalog: catalog, agenda: agenda)); window.minSize = NSSize(width: 920, height: 680)
             window.isReleasedWhenClosed = false; window.delegate = self; window.center(); settingsWindow = window
         }
         NSApp.activate(ignoringOtherApps: true); settingsWindow?.makeKeyAndOrderFront(nil)
@@ -219,7 +243,7 @@ func runSelfTests() {
     let reloaded = BarModel(defaults: defaults, observe: false)
     precondition(reloaded.collections == [updated] && reloaded.widgetWidth == 212 && reloaded.clockSeconds && !reloaded.replaceDock && reloaded.widgetAccent == "mint" && reloaded.widgetStyle == "compact" && reloaded.hoverStyle == "scale", "Detailed settings persistence, collections, widget configuration, focus timer")
     model.removeCollection(group.id); precondition(model.collections.isEmpty, "Collection deletion")
-    let focus = FocusTimer(); focus.reset(minutes: 5); precondition(focus.text == "05:00", "Timer duration")
+    let focus = FocusTimer(defaults: defaults); focus.reset(minutes: 5); precondition(focus.text == "05:00", "Timer duration")
     focus.toggle(minutes: 5); precondition(focus.isRunning, "Timer start")
     focus.toggle(minutes: 5); precondition(!focus.isRunning && focus.remaining <= 300, "Timer pause")
     focus.reset(minutes: 25); precondition(focus.remaining == 1500 && !focus.isRunning, "Timer reset")
@@ -253,11 +277,17 @@ func runSelfTests() {
     model.removeQuickLink(model.quickLinks[0].id); precondition(model.quickLinks.count == 1, "Remove quick link")
     model.deleteProfile(savedProfile.id); precondition(model.profiles.isEmpty, "Delete profile")
     precondition(AppCatalog.searchScore("SAF", in: "Safari") == 0 && AppCatalog.searchScore("vsc", in: "Visual Studio Code") != nil && AppCatalog.searchScore("zzz", in: "Safari") == nil, "Launcher search ranking")
+    do { try runRegressionTests(defaults: defaults, model: model) } catch { preconditionFailure("Regression test failed: \(error)") }
     defaults.removePersistentDomain(forName: suite)
     print("PASS: app validation, reorder, persistence, collections, timer, calendar routing, link validation, two widgets, profiles, atomic preset changes, launcher search")
 }
 
 if CommandLine.arguments.contains("--self-test") { runSelfTests() }
+else if CommandLine.arguments.contains("--diagnostics") {
+    for instance in NSWorkspace.shared.runningApplications where instance.bundleIdentifier == "app.newmacbar.desktop" {
+        print("NewMacBar pid=\(instance.processIdentifier) terminated=\(instance.isTerminated) path=\(instance.bundleURL?.path ?? "unknown")")
+    }
+}
 else {
     let app = NSApplication.shared
     let delegate = AppDelegate()

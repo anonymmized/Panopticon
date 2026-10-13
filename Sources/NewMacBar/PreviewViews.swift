@@ -32,13 +32,13 @@ struct MiniWidget: View {
                     VStack(alignment: .leading, spacing: 3) { Text("Midnight City").font(.system(size: 9, weight: .bold)); HStack { Text("M83").font(.system(size: 7)).opacity(0.6); Spacer(minLength: 10); Image(systemName: "backward.fill"); Image(systemName: "pause.fill"); Image(systemName: "forward.fill") }.font(.system(size: 7)) }.frame(width: 91)
                 }
             } else if kind == "calendar" {
-                VStack(spacing: 1) { Text("ОКТ").font(.system(size: 6, weight: .bold)).foregroundStyle(.white.opacity(0.65)); Text("13").font(.system(size: 20, weight: .semibold)) }.frame(width: 28)
+                VStack(spacing: 1) { Text(Date().formatted(.dateTime.month(.abbreviated)).uppercased()).font(.system(size: 6, weight: .bold)).foregroundStyle(.white.opacity(0.65)); Text(Date().formatted(.dateTime.day())).font(.system(size: 20, weight: .semibold)) }.frame(width: 28)
                 if !compact { VStack(alignment: .leading, spacing: 4) { Text("Твой календарь").font(.system(size: 9, weight: .semibold)); Text("Встречи и планы").font(.system(size: 7)).opacity(0.6) }.frame(width: 95, alignment: .leading) }
             } else if kind == "timer" {
                 Image(systemName: "timer").font(.system(size: 16))
                 if !compact { VStack(alignment: .leading, spacing: 1) { Text("25:00").font(.system(size: 18, weight: .semibold, design: .monospaced)); Text("Время для фокуса").font(.system(size: 7)).opacity(0.6) }.frame(width: 93, alignment: .leading) }
             } else {
-                if compact { Image(systemName: "clock").font(.system(size: 18)) }
+                if compact { let parts = (clockText ?? "22:30").split(separator: ":"); VStack(spacing: 0) { Text(parts.first.map(String.init) ?? "22").font(.system(size: 14, weight: .semibold, design: .monospaced)); Text(parts.dropFirst().first.map(String.init) ?? "30").font(.system(size: 11, weight: .medium, design: .monospaced)).opacity(0.65) }.frame(width: 23, height: 27) }
                 else { VStack(alignment: .leading, spacing: 1) { Text(clockText ?? "22:30").font(.system(size: 18, weight: .semibold, design: .monospaced)); Text(dateText ?? "Вторник, 13 октября").font(.system(size: 7)).opacity(0.6) }.frame(width: 127, alignment: .leading) }
             }
         }.padding(compact ? 9 : 7).foregroundStyle(.white).background(accent.opacity(opacity), in: RoundedRectangle(cornerRadius: 11))

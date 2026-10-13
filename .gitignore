@@ -1,0 +1,5 @@
+.DS_Store
+build/module-cache*/
+build/AppIcon.iconset/
+build/.staging.*/
+build/.previous.*/
