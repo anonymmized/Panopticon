@@ -89,7 +89,7 @@ func runPanelSelfTests() {
     defer { defaults.removePersistentDomain(forName: suite) }
     defaults.set(["/System/Library/CoreServices/Finder.app"], forKey: "pinned")
     let model = BarModel(defaults: defaults, observe: false)
-    model.showRunning = false
+    model.showRunning = false; model.showSpaces = false; model.showTrash = false
     let bar = BarView(model: model, music: MusicController(), focus: FocusTimer(defaults: defaults),
                       agenda: CalendarController())
     let panel = BarPanel(contentRect: NSRect(x: 100, y: 100, width: 600, height: 140),
@@ -118,5 +118,20 @@ func runPanelSelfTests() {
                                   eventNumber: 1, clickCount: 1, pressure: 1)!
     precondition(bar.menu(for: event)?.items.contains { $0.title == "Настройки NewMacBar…" } == true,
                  "Native right-click menu")
+    for edge in DockEdge.allCases {
+        model.edge = edge.rawValue; model.showSpaces = true; model.showTrash = true
+        let size = NSSize(width: bar.preferredWidth, height: bar.preferredHeight)
+        panel.setContentSize(size); root.frame = NSRect(origin: .zero, size: size); bar.frame = root.bounds; bar.refresh()
+        precondition(bar.bounds.contains(bar.barRect), "Bar surface must fit every screen edge")
+        let center = NSPoint(x: bar.barRect.midX, y: bar.barRect.midY)
+        panel.updateMousePassthrough(for: bar, at: panel.convertPoint(toScreen: center))
+        precondition(!panel.ignoresMouseEvents, "Every edge remains interactive")
+        let corner = NSPoint(x: bar.bounds.midX, y: bar.bounds.midY)
+        if !bar.containsInteractivePoint(corner) {
+            panel.updateMousePassthrough(for: bar, at: panel.convertPoint(toScreen: corner))
+            precondition(panel.ignoresMouseEvents, "Every edge passes through transparent margin")
+        }
+    }
+    runDragDropTests(bar: bar, model: model, panel: panel)
     print("PASS: panel passthrough, re-entry, first click, glass hit-test, focus and native menu")
 }

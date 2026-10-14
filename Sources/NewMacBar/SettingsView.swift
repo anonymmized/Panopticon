@@ -22,6 +22,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 10) { Image(nsImage: NSImage(contentsOfFile: Bundle.main.path(forResource: "AppIcon", ofType: "icns") ?? "") ?? NSImage()).resizable().frame(width: 34, height: 34); VStack(alignment: .leading, spacing: 3) { Text("NewMacBar").font(.system(size: 16, weight: .semibold)); Text("СВОЁ ПРОСТРАНСТВО").font(.system(size: 7, weight: .medium)).tracking(1.5).foregroundStyle(.secondary) } }.padding(.vertical, 24)
                 navGroup("ПАНЕЛЬ")
+                nav("Пространства", "square.stack.3d.up.fill", "spaces", .mint)
                 nav("Коллекции", "square.grid.2x2.fill", "collections", .blue)
                 nav("Виджеты", "rectangle.3.group.fill", "widgets", .purple)
                 nav("Приложения", "app.fill", "apps", .indigo)
@@ -39,6 +40,7 @@ struct SettingsView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 23) {
                         if section != "apps" && section != "collections" && section != "profiles" { DockPreview(model: model) }
+                        if section == "spaces" { SpacesSettingsView(model: model) }
                         if section == "appearance" { appearance }
                         if section == "apps" { apps }
                         if section == "widgets" { widgets }
@@ -52,8 +54,8 @@ struct SettingsView: View {
             }.background(ink)
         }.frame(minWidth: 920, minHeight: 680).preferredColorScheme(.dark).tint(.mint)
     }
-    private var title: String { ["appearance": "Внешний вид", "apps": "Твои приложения", "widgets": "Виджеты", "behavior": "Поведение панели", "collections": "Коллекции", "connections": "Связи и действия", "profiles": "Стили и профили"][section]! }
-    private var subtitle: String { ["appearance": "Стекло, движение и детали. Изменения видны сразу.", "apps": "Закрепляй любимое. Перетаскивай иконки, чтобы менять порядок.", "widgets": "Маленькие инструменты. Именно в твоём стиле.", "behavior": "Один Dock, нужный экран и удобное положение.", "collections": "Собери приложения для работы, общения или отдыха.", "connections": "Любимые приложения, календари, папки и сайты.", "profiles": "Характер панели. Настроения. Твои рабочие пространства."][section]! }
+    private var title: String { ["spaces": "Пространства", "appearance": "Внешний вид", "apps": "Твои приложения", "widgets": "Виджеты", "behavior": "Поведение панели", "collections": "Коллекции", "connections": "Связи и действия", "profiles": "Стили и профили"][section]! }
+    private var subtitle: String { ["spaces": "Свои наборы для работы, отдыха и каждого рабочего стола.", "appearance": "Стекло, движение и детали. Изменения видны сразу.", "apps": "Закрепляй любимое. Перетаскивай иконки, чтобы менять порядок.", "widgets": "Маленькие инструменты. Именно в твоём стиле.", "behavior": "Один Dock, нужный экран и удобное положение.", "collections": "Собери приложения для работы, общения или отдыха.", "connections": "Любимые приложения, календари, папки и сайты.", "profiles": "Характер панели. Настроения. Твои рабочие пространства."][section]! }
     private func navGroup(_ label: String) -> some View { Text(label).font(.system(size: 8, weight: .medium)).tracking(1.2).foregroundStyle(.secondary.opacity(0.6)).padding(.leading, 10).padding(.bottom, 6) }
     private func nav(_ title: String, _ icon: String, _ id: String, _ color: Color) -> some View {
         Button { section = id; message = ""; if id == "apps" { loadLibrary() } } label: { HStack(spacing: 10) { Image(systemName: icon).font(.system(size: 12)).foregroundStyle(.white.opacity(0.9)).frame(width: 25, height: 25).background(color.gradient, in: RoundedRectangle(cornerRadius: 7)); Text(title).font(.system(size: 12, weight: .medium)); Spacer(); if id == "collections" && !model.collections.isEmpty { Text("\(model.collections.count)").font(.system(size: 10)).foregroundStyle(.secondary) } }.padding(.horizontal, 10).padding(.vertical, 9).background(section == id ? Color.white.opacity(0.075) : .clear, in: RoundedRectangle(cornerRadius: 10)) }.buttonStyle(.plain)
@@ -64,9 +66,16 @@ struct SettingsView: View {
     private func slider(_ title: String, _ binding: Binding<Double>, _ range: ClosedRange<Double>, _ value: String) -> some View { ParameterSlider(title: title, value: binding, range: range, label: value) }
     private var appearance: some View {
         VStack(alignment: .leading, spacing: 23) {
-            card("Размер и положение") { slider("Размер иконок", $model.iconSize, 28...60, "\(Int(model.iconSize)) px"); slider("Интервал между иконками", $model.iconSpacing, 4...24, "\(Int(model.iconSpacing)) px"); slider("Отступ от нижнего края", $model.bottomOffset, 0...160, "\(Int(model.bottomOffset)) px"); Button("Рекомендуемый компактный размер") { model.iconSize = 36; model.iconSpacing = 8; model.bottomOffset = 4; model.magnification = 1.35; model.hoverLift = 7; model.cornerRadius = 20; model.opacity = 0.08 }.font(.system(size: 10)).buttonStyle(.borderless).foregroundStyle(.mint) }
+            card("Размер и положение") { slider("Размер иконок", $model.iconSize, 28...60, "\(Int(model.iconSize)) px"); slider("Интервал между иконками", $model.iconSpacing, 4...24, "\(Int(model.iconSpacing)) px"); slider("Отступ от края экрана", $model.bottomOffset, 0...160, "\(Int(model.bottomOffset)) px"); Button("Рекомендуемый компактный размер") { model.iconSize = 36; model.iconSpacing = 8; model.bottomOffset = 4; model.magnification = 1.35; model.hoverLift = 7; model.cornerRadius = 20; model.opacity = 0.08 }.font(.system(size: 10)).buttonStyle(.borderless).foregroundStyle(.mint) }
             sectionTitle("Стиль стекла", "Оформление панели поверх обоев и окон.")
-            HStack(spacing: 13) { ForEach([("dark", "Тёмное"), ("light", "Светлое")], id: \.0) { id, label in OptionTile(label, selected: model.theme == id, action: { model.theme = id }) { HStack(spacing: 8) { previewIcon("/System/Library/CoreServices/Finder.app", 31); previewIcon("/Applications/Safari.app", 31); previewIcon("/System/Applications/Music.app", 31) }.padding(10).background(id == "light" ? .white.opacity(0.45) : .black.opacity(0.35), in: RoundedRectangle(cornerRadius: 13)) } } }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 125))], spacing: 13) {
+                ForEach(DockTheme.allCases) { theme in
+                    OptionTile(theme.title, selected: model.theme == theme.rawValue, action: { model.theme = theme.rawValue }) {
+                        HStack(spacing: 8) { previewIcon("/System/Library/CoreServices/Finder.app", 31); previewIcon("/System/Applications/Music.app", 31) }
+                            .padding(10).background(LinearGradient(colors: theme.preview, startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 13))
+                    }
+                }
+            }
             card("Поверхность") { slider("Плотность стекла", $model.opacity, 0...0.65, "\(Int(model.opacity * 100))%"); slider("Скругление углов", $model.cornerRadius, 8...30, "\(Int(model.cornerRadius)) px") }
             sectionTitle("При наведении", "Выбери характер движения иконок.")
             HStack(spacing: 13) { ForEach([("none", "Спокойно"), ("lift", "Подъём"), ("scale", "Увеличение")], id: \.0) { id, label in OptionTile(label, selected: model.hoverStyle == id, action: { model.hoverStyle = id }) { HStack(spacing: 8) { previewIcon("/System/Library/CoreServices/Finder.app", id == "none" ? 30 : 39).offset(y: id == "lift" ? -5 : 0); previewIcon("/Applications/Safari.app", 30) } } } }
@@ -111,7 +120,14 @@ struct SettingsView: View {
     private var behavior: some View {
         VStack(spacing: 23) {
             card("Один Dock") { row("Заменить системный Dock", "Скрывает Dock на рабочем столе; в Mission Control видна панель macOS", $model.replaceDock); Text(dock.message).font(.system(size: 10)).foregroundStyle(.secondary).lineSpacing(4); Text("При выходе из NewMacBar прежние настройки Dock восстановятся. После аварийного завершения восстановить его можно этой кнопкой.").font(.system(size: 10)).foregroundStyle(.secondary).lineSpacing(4); Button("Вернуть системный Dock") { model.replaceDock = false; dock.restore() }.font(.system(size: 10)); if NSWorkspace.shared.runningApplications.contains(where: { $0.bundleIdentifier?.lowercased().contains("dockspace") == true || $0.localizedName == "Dockspace" }) { Button("Закрыть Dockspace") { NSWorkspace.shared.runningApplications.first { $0.localizedName == "Dockspace" }?.terminate() }.font(.system(size: 10)) } }
-            card("Положение и видимость") { Picker("Экран", selection: $model.screenIndex) { ForEach(Array(NSScreen.screens.enumerated()), id: \.offset) { index, screen in Text(screen.localizedName).tag(index) } }.font(.system(size: 11)); row("Автоматически скрывать", "Появляется, когда курсор у нижнего края экрана", $model.autoHide); row("Открытые приложения", "Показывать запущенные приложения рядом с закреплёнными", $model.showRunning) }
+            card("Положение и видимость") {
+                Picker("Край экрана", selection: $model.edge) { ForEach(DockEdge.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) } }.font(.system(size: 11))
+                row("Показывать панель", "Также переключается сочетанием ⌃⌥D", $model.barVisible)
+                row("Следовать за курсором", "Перемещать панель на экран, где находится курсор", $model.followMouse)
+                row("Корзина на панели", "Перетаскивание закреплённой иконки сюда убирает ярлык; файл из Finder отправляется в Корзину", $model.showTrash)
+                row("Бейджи приложений", "Считывать счётчики из системного Dock при разрешённом Универсальном доступе", $model.showBadges)
+                if model.showBadges && !AX.trusted { Button("Подключить Универсальный доступ…") { AX.requestTrust() }.font(.system(size: 11)) }
+ Picker("Экран", selection: $model.screenIndex) { ForEach(Array(NSScreen.screens.enumerated()), id: \.offset) { index, screen in Text(screen.localizedName).tag(index) } }.font(.system(size: 11)); row("Автоматически скрывать", "Появляется, когда курсор у выбранного края экрана", $model.autoHide); row("Открытые приложения", "Показывать запущенные приложения рядом с закреплёнными", $model.showRunning) }
             card("Запуск") { Toggle("Открывать при входе в macOS", isOn: $loginEnabled).font(.system(size: 12)).onChange(of: loginEnabled) { enabled in do { if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }; message = SMAppService.mainApp.status == .requiresApproval ? "Подтверди запуск в macOS → Основные → Объекты входа." : "Настройка сохранена." } catch { message = error.localizedDescription; loginEnabled = SMAppService.mainApp.status == .enabled } }; Text("Для автозапуска перенеси приложение в папку «Программы».").font(.system(size: 10)).foregroundStyle(.secondary) }
             Button("Завершить NewMacBar и восстановить Dock") { NSApp.terminate(nil) }.font(.system(size: 11)).buttonStyle(.borderless).foregroundStyle(.secondary)
         }

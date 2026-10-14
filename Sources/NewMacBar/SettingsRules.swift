@@ -25,7 +25,8 @@ extension ProfileAppearance {
         v.widgetOpacity = SettingsRules.number(v.widgetOpacity, 0.08...0.7, fallback: 0.28)
         if let timerMinutes = v.timerMinutes { v.timerMinutes = SettingsRules.number(timerMinutes, 5...90, fallback: 25) }
         if let clockFormat = v.clockFormat { v.clockFormat = SettingsRules.choice(clockFormat, ["12h", "24h"], fallback: "24h") }
-        v.theme = SettingsRules.choice(v.theme, ["dark", "light"], fallback: "dark")
+        if let edge = v.edge { v.edge = SettingsRules.choice(edge, DockEdge.allCases.map(\.rawValue), fallback: "bottom") }
+        v.theme = SettingsRules.choice(v.theme, DockTheme.allCases.map(\.rawValue), fallback: "dark")
         v.accent = SettingsRules.choice(v.accent, ["violet", "blue", "cyan", "mint", "orange", "rose", "neutral"], fallback: "violet")
         v.hover = SettingsRules.choice(v.hover, ["none", "lift", "scale"], fallback: "lift")
         v.launch = SettingsRules.choice(v.launch, ["none", "bounce", "pulse"], fallback: "bounce")
@@ -59,7 +60,7 @@ struct ProfileArchive: Codable {
         }
         p.links = p.links.prefix(100).compactMap { link in
             var l = link; l.id = UUID().uuidString; l.name = SettingsRules.label(l.name)
-            guard !l.name.isEmpty, ["web", "folder"].contains(l.kind), l.url != nil else { return nil }; return l
+            guard !l.name.isEmpty, ["web", "folder", "file"].contains(l.kind), l.url != nil else { return nil }; return l
         }
         p.appearance = p.appearance.sanitized()
         return p

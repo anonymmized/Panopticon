@@ -63,6 +63,18 @@ final class BarModel: ObservableObject {
     @Published var profiles: [DockProfile] = []
     @Published var selectedCalendarIDs: [String] = []
     @Published private(set) var items: [DockItem] = []
+    @Published var spaces: [BarSpace] = []
+    @Published var selectedSpaceID = ""
+    @Published var edge: String { didSet { save() } }
+    @Published var showSpaces: Bool { didSet { save() } }
+    @Published var showTrash: Bool { didSet { save() } }
+    @Published var showBadges: Bool { didSet { save() } }
+    @Published var autoSwitchDesktops: Bool { didSet { save() } }
+    @Published var scrollToSwitch: Bool { didSet { save() } }
+    @Published var followMouse: Bool { didSet { save() } }
+    @Published var barVisible: Bool { didSet { save() } }
+    @Published var badges: [String: String] = [:]
+    @Published var currentDesktop: Int?
     var activeBundleID: String?
     private var batchDepth = 0
     @Published private(set) var recentAppPaths: [String] = []
@@ -71,6 +83,14 @@ final class BarModel: ObservableObject {
 
     init(defaults: UserDefaults = .standard, observe: Bool = true) {
         self.defaults = defaults
+        edge = SettingsRules.choice(defaults.string(forKey: "edge") ?? "bottom", DockEdge.allCases.map(\.rawValue), fallback: "bottom")
+        showSpaces = defaults.object(forKey: "showSpaces") as? Bool ?? true
+        showTrash = defaults.object(forKey: "showTrash") as? Bool ?? true
+        showBadges = defaults.bool(forKey: "showBadges")
+        autoSwitchDesktops = defaults.object(forKey: "autoSwitchDesktops") as? Bool ?? true
+        scrollToSwitch = defaults.object(forKey: "scrollToSwitch") as? Bool ?? true
+        followMouse = defaults.bool(forKey: "followMouse")
+        barVisible = defaults.object(forKey: "barVisible") as? Bool ?? true
         iconSize = defaults.object(forKey: "iconSize") as? Double ?? 36
         magnification = defaults.object(forKey: "magnification") as? Double ?? 1.35
         bottomOffset = defaults.object(forKey: "bottomOffset") as? Double ?? 10
@@ -94,7 +114,7 @@ final class BarModel: ObservableObject {
         playerPreference = defaults.string(forKey: "playerPreference") ?? "auto"
         clockFormat = defaults.string(forKey: "clockFormat") ?? "24h"
         clockSeconds = defaults.object(forKey: "clockSeconds") as? Bool ?? false
-        replaceDock = defaults.object(forKey: "replaceDock") as? Bool ?? true
+        replaceDock = defaults.object(forKey: "replaceDock") as? Bool ?? false
         showLabels = defaults.object(forKey: "showLabels") as? Bool ?? true
         showSettingsButton = defaults.object(forKey: "showSettingsButton") as? Bool ?? false
         showSeparator = defaults.object(forKey: "showSeparator") as? Bool ?? true
@@ -116,6 +136,24 @@ final class BarModel: ObservableObject {
             pinned = paths.map { DockItem(url: URL(fileURLWithPath: $0)) }.filter { FileManager.default.fileExists(atPath: $0.id) }
         } else {
             pinned = Self.systemDockItems()
+        }
+        if let data = defaults.data(forKey: "spaces"), let saved = try? JSONDecoder().decode([BarSpace].self, from: data), !saved.isEmpty {
+            var ids = Set<String>()
+            spaces = saved.filter { ids.insert($0.id).inserted }.prefix(30).map { space in
+                var space = space; space.name = SettingsRules.label(space.name)
+                if space.name.isEmpty { space.name = "Пространство" }
+                return space
+            }
+            selectedSpaceID = defaults.string(forKey: "selectedSpaceID") ?? spaces[0].id
+            if !spaces.contains(where: { $0.id == selectedSpaceID }) { selectedSpaceID = spaces[0].id }
+            if let current = spaces.first(where: { $0.id == selectedSpaceID }) {
+                pinned = current.paths.map { DockItem(url: URL(fileURLWithPath: $0)) }.filter { $0.bundleID != nil && FileManager.default.fileExists(atPath: $0.id) }
+                quickLinks = current.links; collections = current.collections
+            }
+        } else {
+            let primary = BarSpace(name: "Главное", paths: pinned.map(\.id), links: quickLinks, collections: collections)
+            spaces = [primary, BarSpace(name: "Работа", symbol: "briefcase"), BarSpace(name: "Отдых", symbol: "gamecontroller")]
+            selectedSpaceID = primary.id
         }
         recentAppPaths = defaults.stringArray(forKey: "recentAppPaths") ?? []
         batch {
@@ -204,6 +242,14 @@ final class BarModel: ObservableObject {
     func importDock() { pinned = Self.systemDockItems(); save() }
     func save() {
         guard batchDepth == 0 else { return }
+        snapshotSpace()
+        if let data = try? JSONEncoder().encode(spaces) { defaults.set(data, forKey: "spaces") }
+        defaults.set(selectedSpaceID, forKey: "selectedSpaceID")
+        defaults.set(edge, forKey: "edge"); defaults.set(showSpaces, forKey: "showSpaces")
+        defaults.set(showTrash, forKey: "showTrash"); defaults.set(showBadges, forKey: "showBadges")
+        defaults.set(autoSwitchDesktops, forKey: "autoSwitchDesktops")
+        defaults.set(scrollToSwitch, forKey: "scrollToSwitch"); defaults.set(followMouse, forKey: "followMouse")
+        defaults.set(barVisible, forKey: "barVisible")
         rebuildItems()
         defaults.set(calendarDestination, forKey: "calendarDestination")
         defaults.set(calendarAppPath, forKey: "calendarAppPath")

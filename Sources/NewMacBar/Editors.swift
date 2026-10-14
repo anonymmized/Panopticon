@@ -11,7 +11,7 @@ struct LinkEditor: View {
         VStack(alignment: .leading, spacing: 18) {
             Text("Редактировать ярлык").font(.system(size: 20, weight: .semibold))
             TextField("Название", text: $link.name).textFieldStyle(.roundedBorder)
-            HStack { TextField(link.kind == "folder" ? "Путь к папке" : "https://…", text: $link.destination).textFieldStyle(.roundedBorder); if link.kind == "folder" { Button("Выбрать…") { let panel = NSOpenPanel(); panel.canChooseFiles = false; panel.canChooseDirectories = true; if panel.runModal() == .OK, let url = panel.url { link.destination = url.path } } } }
+            HStack { TextField(link.kind == "folder" ? "Путь к папке" : (link.kind == "file" ? "Путь к файлу" : "https://…"), text: $link.destination).textFieldStyle(.roundedBorder); if link.kind == "folder" || link.kind == "file" { Button("Выбрать…") { let panel = NSOpenPanel(); panel.canChooseFiles = link.kind == "file"; panel.canChooseDirectories = link.kind == "folder"; if panel.runModal() == .OK, let url = panel.url { link.destination = url.path } } } }
             if !error.isEmpty { Text(error).font(.system(size: 11)).foregroundStyle(.orange) }
             HStack { Button("Отмена") { dismiss() }.keyboardShortcut(.cancelAction); Spacer(); Button("Сохранить") { if model.updateQuickLink(link) { dismiss() } else { error = "Проверь название, адрес и отсутствие дубликата." } }.keyboardShortcut(.defaultAction) }
         }.padding(25).frame(width: 470).preferredColorScheme(.dark)

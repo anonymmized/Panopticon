@@ -18,9 +18,14 @@ jobs:
           .build/release/NewMacBar --panel-self-test
       - name: Package and verify app
         run: ./build.sh
+      - name: Package DMG
+        run: ./scripts/make_dmg.sh --skip-build
       - name: Archive app
         run: ditto -c -k --keepParent build/NewMacBar.app build/NewMacBar.zip
       - uses: actions/upload-artifact@v4
         with:
           name: NewMacBar
-          path: build/NewMacBar.zip
+          path: |
+            build/NewMacBar.zip
+            build/*.dmg
+            build/*.sha256

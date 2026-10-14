@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Carbon
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let model = BarModel.shared
@@ -30,6 +31,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var hidden = false
     var hoverDeadline = Date.distantPast
     var screenObserver: NSObjectProtocol?
+    var settingsObserver: NSObjectProtocol?
+    var desktopObserver: NSObjectProtocol?
+    var spaceHotKeys: [UInt32] = []
+    var folderPopover: NSPopover?
+    var lastBadgesPoll = Date.distantPast
     private var globalMouseMonitor: Any?
     private var localMouseMonitor: Any?
 
@@ -73,6 +79,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         bar = BarView(model: model, music: music, focus: focus, agenda: agenda)
         root.addSubview(bar.glass); root.addSubview(bar)
         panel.contentView = root
+        bar.openFolder = { [weak self] url, rect in self?.showFolder(url, rect: rect) }
+        for (index, key) in HotKeys.digitKeys.enumerated() {
+            if let id = HotKeys.shared.register(key, handler: { [weak self] in
+                guard let self, index < self.model.spaces.count else { return }
+                self.model.selectSpace(self.model.spaces[index].id); self.reveal()
+            }) { spaceHotKeys.append(id) }
+        }
+        if let id = HotKeys.shared.register(kVK_ANSI_D, handler: { [weak self] in
+            guard let self else { return }; self.model.barVisible.toggle()
+        }) { spaceHotKeys.append(id) }
+        settingsObserver = NotificationCenter.default.addObserver(forName: .openBarSettings, object: nil, queue: .main) { [weak self] _ in self?.showSettings() }
+        for (key, delta) in [(kVK_LeftArrow, -1), (kVK_RightArrow, 1)] {
+            if let id = HotKeys.shared.register(key, handler: { [weak self] in self?.model.cycleSpace(delta) }) { spaceHotKeys.append(id) }
+        }
+        desktopObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil, queue: .main) { [weak self] _ in self?.updateDesktop() }
         bar.openSettings = { [weak self] in self?.showSettings() }
         bar.openAgenda = { [weak self] rect in self?.showAgenda(rect) }
         agenda.onChange = { [weak self] in self?.bar.needsDisplay = true }
@@ -93,7 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         menu.addItem(withTitle: "Завершить", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         statusItem.menu = menu
         screenObserver = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in self?.updatePanel() }
-        preferencesChanged(); panel.orderFrontRegardless()
+        preferencesChanged(); updateDesktop()
         // A nil view hit-test cannot forward a click to another application.
         // Update the window itself when the pointer crosses its transparent margin.
         let mouseEvents: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .rightMouseDragged]
@@ -111,15 +133,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var screen: NSScreen? { let screens = NSScreen.screens; return screens.isEmpty ? nil : screens[min(max(0, model.screenIndex), screens.count - 1)] }
     func updatePanel(animated: Bool = false) {
         guard panel != nil, let screen else { return }
+        guard model.barVisible else { panel.orderOut(nil); return }
         let width = min(bar.preferredWidth, screen.frame.width - 24)
-        let height = bar.preferredHeight
-        let y = hidden && model.autoHide ? screen.frame.minY - height + 3 : screen.frame.minY + CGFloat(model.bottomOffset)
-        let frame = NSRect(x: screen.frame.midX - width / 2, y: y, width: width, height: height)
+        let height = min(bar.preferredHeight, screen.visibleFrame.height - 24)
+        let offset = CGFloat(model.bottomOffset)
+        let area = screen.frame
+        var frame: NSRect
+        switch model.dockEdge {
+        case .bottom: frame = NSRect(x: area.midX - width / 2, y: area.minY + offset, width: width, height: height)
+        case .top: frame = NSRect(x: area.midX - width / 2, y: screen.visibleFrame.maxY - height - offset, width: width, height: height)
+        case .left: frame = NSRect(x: area.minX + offset, y: screen.visibleFrame.midY - height / 2, width: width, height: height)
+        case .right: frame = NSRect(x: area.maxX - width - offset, y: screen.visibleFrame.midY - height / 2, width: width, height: height)
+        }
+        if hidden && model.autoHide {
+            switch model.dockEdge {
+            case .bottom: frame.origin.y = area.minY - height + 3
+            case .top: frame.origin.y = area.maxY - 3
+            case .left: frame.origin.x = area.minX - width + 3
+            case .right: frame.origin.x = area.maxX - 3
+            }
+        }
         if animated && !model.reduceMotion && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             NSAnimationContext.runAnimationGroup { context in context.duration = 0.2; context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut); panel.animator().setFrame(frame, display: true) }
         } else { panel.setFrame(frame, display: true) }
         bar.frame = NSRect(origin: .zero, size: panel.frame.size)
         bar.refresh()
+        panel.orderFrontRegardless()
         updateMousePassthrough()
         music.preference = model.playerPreference
         if model.widgetKinds.contains("music") { music.refresh() }
@@ -128,6 +167,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard let panel, let bar else { return }
         panel.updateMousePassthrough(for: bar, at: NSEvent.mouseLocation)
     }
+    func updateDesktop() { model.desktopChanged(Desktops.current(for: screen)?.number) }
     func configurePulse() {
         guard lastPulseAutoHide != model.autoHide else { return }
         lastPulseAutoHide = model.autoHide; timer?.invalidate()
@@ -137,6 +177,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func pulse() {
         updateMousePassthrough()
         let now = Date()
+        if now.timeIntervalSince(lastBadgesPoll) >= 2 { lastBadgesPoll = now; model.refreshBadges() }
+        if model.followMouse, let index = NSScreen.screens.firstIndex(where: { $0.frame.contains(NSEvent.mouseLocation) }), index != model.screenIndex {
+            model.screenIndex = index; updateDesktop()
+        }
+        guard model.barVisible else { return }
         if model.widgetKinds.contains("music"), (!hidden || musicPopover?.isShown == true), now.timeIntervalSince(lastMusicPoll) >= (musicPopover?.isShown == true ? 1 : 4) { lastMusicPoll = now; music.refresh() }
         if model.calendarEventsEnabled { agenda.refresh() }
         let timestamp = String(Int(now.timeIntervalSince1970) / (model.clockSeconds || focus.isRunning ? 1 : 60))
@@ -144,29 +189,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard let screen else { return }
         if !model.autoHide { if hidden { hidden = false; updatePanel() }; return }
         let mouse = NSEvent.mouseLocation
-        let nearBottom = mouse.x >= panel.frame.minX && mouse.x <= panel.frame.maxX && mouse.y >= screen.frame.minY && mouse.y < screen.frame.minY + 7
+        let nearBottom: Bool
+        switch model.dockEdge {
+        case .bottom: nearBottom = (panel.frame.minX...panel.frame.maxX).contains(mouse.x) && mouse.y < screen.frame.minY + 7 && mouse.y >= screen.frame.minY
+        case .top: nearBottom = (panel.frame.minX...panel.frame.maxX).contains(mouse.x) && mouse.y > screen.visibleFrame.maxY - 7 && mouse.y <= screen.frame.maxY
+        case .left: nearBottom = (panel.frame.minY...panel.frame.maxY).contains(mouse.y) && mouse.x < screen.frame.minX + 7 && mouse.x >= screen.frame.minX
+        case .right: nearBottom = (panel.frame.minY...panel.frame.maxY).contains(mouse.y) && mouse.x > screen.frame.maxX - 7 && mouse.x <= screen.frame.maxX
+        }
         let inside = !hidden && panel.frame.insetBy(dx: -12, dy: -10).contains(mouse)
-        if inside || nearBottom || (settingsWindow?.isVisible == true || musicPopover?.isShown == true || collectionPopover?.isShown == true || calendarPopover?.isShown == true) { hoverDeadline = Date().addingTimeInterval(0.8); if hidden { hidden = false; updatePanel(animated: true) } }
+        if inside || nearBottom || (settingsWindow?.isVisible == true || musicPopover?.isShown == true || collectionPopover?.isShown == true || calendarPopover?.isShown == true || folderPopover?.isShown == true || NSEvent.pressedMouseButtons != 0) { hoverDeadline = Date().addingTimeInterval(0.8); if hidden { hidden = false; updatePanel(animated: true) } }
         else if !hidden && Date() > hoverDeadline { hidden = true; updatePanel(animated: true) }
     }
     func showAgenda(_ rect: NSRect) {
-        musicPopover?.close(); collectionPopover?.close(); reveal()
+        musicPopover?.close(); collectionPopover?.close(); folderPopover?.close(); reveal()
         if calendarPopover == nil {
             let popover = NSPopover(); popover.behavior = .transient
             popover.contentViewController = NSHostingController(rootView: CalendarPopoverView(agenda: agenda, model: model))
             popover.contentSize = NSSize(width: 350, height: 540); calendarPopover = popover
         }
-        calendarPopover?.show(relativeTo: rect, of: bar, preferredEdge: .maxY)
+        calendarPopover?.show(relativeTo: rect, of: bar, preferredEdge: model.dockEdge.popoverEdge)
     }
     func showMusic(_ rect: NSRect) {
-        calendarPopover?.close(); collectionPopover?.close(); reveal()
+        calendarPopover?.close(); collectionPopover?.close(); folderPopover?.close(); reveal()
         if musicPopover == nil {
             let popover = NSPopover(); popover.behavior = .transient
             popover.contentViewController = NSHostingController(rootView: MusicPopoverView(music: music))
             popover.contentSize = NSSize(width: 350, height: 280)
             musicPopover = popover
         }
-        music.refresh(force: true, requestPermission: true); musicPopover?.show(relativeTo: rect, of: bar, preferredEdge: .maxY)
+        music.refresh(force: true, requestPermission: true); musicPopover?.show(relativeTo: rect, of: bar, preferredEdge: model.dockEdge.popoverEdge)
     }
     func preferencesChanged() {
         configurePulse()
@@ -188,15 +239,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         updatePanel()
     }
     func showCollection(_ collection: AppCollection, _ rect: NSRect) {
-        musicPopover?.close(); calendarPopover?.close(); reveal()
+        musicPopover?.close(); calendarPopover?.close(); folderPopover?.close(); reveal()
         collectionPopover?.close()
         let popover = NSPopover(); popover.behavior = .transient
         popover.contentViewController = NSHostingController(rootView: CollectionPopoverView(collection: collection, model: model))
         popover.contentSize = NSSize(width: 330, height: 270); collectionPopover = popover
-        popover.show(relativeTo: rect, of: bar, preferredEdge: .maxY)
+        popover.show(relativeTo: rect, of: bar, preferredEdge: model.dockEdge.popoverEdge)
+    }
+    func showFolder(_ url: URL, rect: NSRect) {
+        closePopovers(); reveal()
+        let popover = NSPopover(); popover.behavior = .transient
+        popover.contentViewController = NSHostingController(rootView: FolderStackView(folder: url))
+        popover.contentSize = NSSize(width: 370, height: 410); folderPopover = popover
+        popover.show(relativeTo: rect, of: bar, preferredEdge: model.dockEdge.popoverEdge)
     }
     func updateProfileMenu() {
         guard let menu = statusItem?.menu else { return }
+        for item in menu.items where item.tag == 302 { menu.removeItem(item) }
+        let spaceGroup = NSMenuItem(title: "Пространства", action: nil, keyEquivalent: ""); spaceGroup.tag = 302
+        let spaceMenu = NSMenu()
+        for (index, space) in model.spaces.enumerated() {
+            spaceMenu.addItem(ActionMenuItem(space.name + (index < 9 ? "  ⌃⌥\(index + 1)" : ""), checked: space.id == model.selectedSpaceID) { [weak self] in self?.model.selectSpace(space.id) })
+        }
+        spaceGroup.submenu = spaceMenu; menu.insertItem(spaceGroup, at: min(4, menu.numberOfItems))
         for item in menu.items where item.tag == 300 { menu.removeItem(item) }
         if !model.profiles.isEmpty {
             let group = NSMenuItem(title: "Профили панели", action: nil, keyEquivalent: ""); group.tag = 300
@@ -206,13 +271,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
     @objc func selectProfile(_ sender: NSMenuItem) { if let profile = sender.representedObject as? DockProfile { model.applyProfile(profile) } }
-    func closePopovers() { musicPopover?.close(); calendarPopover?.close(); collectionPopover?.close() }
+    func closePopovers() { musicPopover?.close(); calendarPopover?.close(); collectionPopover?.close(); folderPopover?.close() }
     @objc func handleActivation(_ notification: Notification) { showSettings() }
     func applicationWillTerminate(_ notification: Notification) {
         timer?.invalidate()
         if let globalMouseMonitor { NSEvent.removeMonitor(globalMouseMonitor) }
         if let localMouseMonitor { NSEvent.removeMonitor(localMouseMonitor) }
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
+        if let settingsObserver { NotificationCenter.default.removeObserver(settingsObserver) }
+        if let desktopObserver { NSWorkspace.shared.notificationCenter.removeObserver(desktopObserver) }
+        for id in spaceHotKeys { HotKeys.shared.unregister(id) }
         if ownsSession { dock.restore() }
         DistributedNotificationCenter.default().removeObserver(self)
     }
@@ -227,14 +295,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         searchPanel?.contentView = NSHostingView(rootView: QuickLauncherView(model: model, catalog: catalog, close: { [weak self] in self?.searchPanel?.orderOut(nil) }))
         searchPanel?.center(); NSApp.activate(ignoringOtherApps: true); searchPanel?.makeKeyAndOrderFront(nil)
     }
-    @objc func reveal() { hidden = false; hoverDeadline = Date().addingTimeInterval(3); updatePanel(); panel.orderFrontRegardless() }
+    @objc func reveal() { if !model.barVisible { model.barVisible = true }; hidden = false; hoverDeadline = Date().addingTimeInterval(3); updatePanel(); panel.orderFrontRegardless() }
     @objc func showSettings() {
         if settingsWindow == nil {
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 990, height: 760), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
             window.title = "NewMacBar"; window.titlebarAppearsTransparent = true
             window.backgroundColor = NSColor(red: 0.075, green: 0.085, blue: 0.1, alpha: 1)
             window.contentView = NSHostingView(rootView: SettingsView(model: model, dock: dock, focus: focus, catalog: catalog, agenda: agenda)); window.minSize = NSSize(width: 920, height: 680)
-            window.isReleasedWhenClosed = false; window.delegate = self; window.center(); settingsWindow = window
+            window.setFrameAutosaveName("NewMacBar.Settings"); window.isReleasedWhenClosed = false; window.delegate = self
+            if !window.setFrameUsingName("NewMacBar.Settings") { window.center() }; settingsWindow = window
         }
         NSApp.activate(ignoringOtherApps: true); settingsWindow?.makeKeyAndOrderFront(nil)
     }
@@ -304,6 +373,7 @@ func runSelfTests() {
     model.deleteProfile(savedProfile.id); precondition(model.profiles.isEmpty, "Delete profile")
     precondition(AppCatalog.searchScore("SAF", in: "Safari") == 0 && AppCatalog.searchScore("vsc", in: "Visual Studio Code") != nil && AppCatalog.searchScore("zzz", in: "Safari") == nil, "Launcher search ranking")
     do { try runRegressionTests(defaults: defaults, model: model) } catch { preconditionFailure("Regression test failed: \(error)") }
+    do { try runIntegrationTests() } catch { preconditionFailure("Integration test failed: \(error)") }
     defaults.removePersistentDomain(forName: suite)
     print("PASS: app validation, reorder, persistence, collections, timer, calendar routing, link validation, two widgets, profiles, atomic preset changes, launcher search")
 }

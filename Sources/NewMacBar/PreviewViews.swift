@@ -62,7 +62,7 @@ struct DockPreview: View {
                         }
                     }
 
-                }.padding(.horizontal, 12).padding(.vertical, 9).background(model.theme == "light" ? Color.white.opacity(0.35) : Color.black.opacity(0.22), in: RoundedRectangle(cornerRadius: model.cornerRadius)).overlay(RoundedRectangle(cornerRadius: model.cornerRadius).stroke(.white.opacity(0.25), lineWidth: 0.7)).frame(maxWidth: .infinity)
+                }.padding(.horizontal, 12).padding(.vertical, 9).background(model.dockTheme.isLight ? Color.white.opacity(0.35) : Color.black.opacity(0.22), in: RoundedRectangle(cornerRadius: model.cornerRadius)).overlay(RoundedRectangle(cornerRadius: model.cornerRadius).stroke(.white.opacity(0.25), lineWidth: 0.7)).frame(maxWidth: .infinity)
                 Spacer()
             }.padding(17)
         }.frame(height: 150).clipShape(RoundedRectangle(cornerRadius: 16))

@@ -5,9 +5,9 @@ struct QuickLink: Identifiable, Codable, Equatable {
     var name: String
     var kind: String
     var destination: String
-    var symbol: String { kind == "folder" ? "folder.fill" : "globe" }
+    var symbol: String { kind == "folder" ? "folder.fill" : (kind == "file" ? "doc.fill" : "globe") }
     var url: URL? {
-        if kind == "folder" { return destination.hasPrefix("/") ? URL(fileURLWithPath: destination).standardizedFileURL : nil }
+        if kind == "folder" || kind == "file" { return destination.hasPrefix("/") ? URL(fileURLWithPath: destination).standardizedFileURL : nil }
         guard let url = URL(string: destination), ["https", "http"].contains(url.scheme?.lowercased() ?? ""), url.host != nil else { return nil }
         return url
     }
@@ -80,7 +80,11 @@ struct ProfileAppearance: Codable, Equatable {
     var showRunning: Bool?
     var autoHide: Bool?
     var reduceMotion: Bool?
+    var edge: String?
+    var showSpaces: Bool?
+    var showTrash: Bool?
     init(_ model: BarModel) {
+        edge = model.edge; showSpaces = model.showSpaces; showTrash = model.showTrash
         iconSize = model.iconSize; spacing = model.iconSpacing; opacity = model.opacity; radius = model.cornerRadius
         magnification = model.magnification; lift = model.hoverLift; bottom = model.bottomOffset
         theme = model.theme; accent = model.widgetAccent; hover = model.hoverStyle; launch = model.launchStyle
@@ -90,6 +94,7 @@ struct ProfileAppearance: Codable, Equatable {
         labels = model.showLabels; separator = model.showSeparator; settingsButton = model.showSettingsButton; showRunning = model.showRunning; autoHide = model.autoHide; reduceMotion = model.reduceMotion
     }
     func apply(to model: BarModel) {
+        if let edge { model.edge = edge }; if let showSpaces { model.showSpaces = showSpaces }; if let showTrash { model.showTrash = showTrash }
         model.iconSize = iconSize; model.iconSpacing = spacing; model.opacity = opacity; model.cornerRadius = radius
         model.magnification = magnification; model.hoverLift = lift; model.bottomOffset = bottom
         model.theme = theme; model.widgetAccent = accent; model.hoverStyle = hover; model.launchStyle = launch
@@ -110,12 +115,12 @@ extension BarModel {
     func openCalendar() { ActionRouter.open(calendarTarget) }
     @discardableResult func addQuickLink(name: String, kind: String, destination: String) -> Bool {
         let link = QuickLink(name: name.trimmingCharacters(in: .whitespacesAndNewlines), kind: kind, destination: destination.trimmingCharacters(in: .whitespacesAndNewlines))
-        guard ["folder", "web"].contains(kind), !link.name.isEmpty, link.url != nil, !quickLinks.contains(where: { $0.kind == link.kind && $0.destination == link.destination }) else { return false }
+        guard ["folder", "web", "file"].contains(kind), !link.name.isEmpty, link.url != nil, !quickLinks.contains(where: { $0.kind == link.kind && $0.destination == link.destination }) else { return false }
         quickLinks.append(link); save(); return true
     }
     @discardableResult func updateQuickLink(_ link: QuickLink) -> Bool {
         var updated = link; updated.name = SettingsRules.label(updated.name)
-        guard !updated.name.isEmpty, updated.url != nil, ["web", "folder"].contains(updated.kind),
+        guard !updated.name.isEmpty, updated.url != nil, ["web", "folder", "file"].contains(updated.kind),
               !quickLinks.contains(where: { $0.id != link.id && $0.kind == link.kind && $0.destination == link.destination }),
               let i = quickLinks.firstIndex(where: { $0.id == link.id }) else { return false }
         quickLinks[i] = updated; save(); return true
