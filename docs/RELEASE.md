@@ -44,7 +44,7 @@ A command succeeding is not a substitute for the separate user-driven checks bel
 - Bounds restored focus sessions and rejects non-finite duration input.
 - Distinguishes a fresh focus session from a paused session in labels and actions.
 - Keeps numeric controls and transient status labels in the selected interface language.
-- Trims obsolete icon-cache entries when changing panel contents.
+- Keeps compact settings headings and language controls visible, with native picker titles refreshed on language changes.
 - Validates resources before installation and preserves originals after rollback failure.
 - Adds illustrated, bilingual documentation with reproducible component previews.
 

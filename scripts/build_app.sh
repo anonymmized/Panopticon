@@ -50,6 +50,7 @@ import hashlib, json, pathlib, plistlib, sys
 app, arch, signing, commit, dirty = pathlib.Path(sys.argv[1]), *sys.argv[2:]
 info = plistlib.loads((app / 'Contents/Info.plist').read_bytes())
 manifest = dict(version=info['CFBundleShortVersionString'], build=info['CFBundleVersion'], architecture=arch,
+                channel=info.get('PanopticonBuildChannel', 'development'),
                 minimumOS=info['LSMinimumSystemVersion'], signing=signing, notarized=False, commit=commit,
                 dirty=dirty == 'true', binarySHA256=hashlib.sha256((app/'Contents/MacOS/Panopticon').read_bytes()).hexdigest())
 pathlib.Path('build/app-manifest.json').write_text(json.dumps(manifest, indent=2, sort_keys=True)+'\n')

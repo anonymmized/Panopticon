@@ -6,6 +6,10 @@ cd "${0:A:h:h}"
 [[ $# == 2 && "$1" == <-> && "$1" -ge 30 && "$1" -le 3600 ]] || { printf 'Usage: ./scripts/run_platform_probe.sh seconds output.json\n' >&2; exit 2; }
 task_seconds="$1"
 task_output="${2:A}"
+task_scenario="${PROBE_SCENARIO:-visible}"
+[[ "$task_scenario" == visible || "$task_scenario" == autohide ]] || { printf 'PROBE_SCENARIO must be visible or autohide\n' >&2; exit 2; }
+task_language="${PROBE_LANGUAGE:-system}"
+[[ "$task_language" == system || "$task_language" == en || "$task_language" == ru ]] || { printf 'PROBE_LANGUAGE must be system, en or ru\n' >&2; exit 2; }
 task_stage=$(mktemp -d "$PWD/build/.platform-probe.XXXXXX")
 task_id="app.newmacbar.platformreview.$(uuidgen | tr '[:upper:]' '[:lower:]')"
 task_app="$task_stage/PanopticonQA.app"
@@ -18,11 +22,13 @@ cleanup() {
 trap cleanup EXIT
 [[ -d build/Panopticon.app ]] || { printf 'Build first with ./build.sh\n' >&2; exit 1; }
 ditto build/Panopticon.app "$task_app"
+cp build/app-manifest.json "$task_stage/source-manifest.json"
 /usr/libexec/PlistBuddy -c "Set CFBundleIdentifier $task_id" "$task_app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set CFBundleName PanopticonQA' "$task_app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set CFBundleDisplayName PanopticonQA' "$task_app/Contents/Info.plist"
 codesign --force --sign - --options runtime --timestamp=none --entitlements resources/Panopticon.entitlements "$task_app"
 /usr/bin/defaults write "$task_id" layoutVersion -int 2
+/usr/bin/defaults write "$task_id" interfaceLanguage -string "$task_language"
 /usr/bin/defaults write "$task_id" ui.onboardingCompleted -bool true
 /usr/bin/defaults write "$task_id" pinned -array /System/Library/CoreServices/Finder.app /System/Applications/Calendar.app /System/Applications/Music.app '/System/Applications/System Settings.app'
 for task_flag in replaceDock calendarEventsEnabled showRunning showBadges showSpaces showTrash showSettingsButton launcherEnabled autoHide followMouse; do
@@ -31,6 +37,12 @@ done
 /usr/bin/defaults write "$task_id" widget -string none
 /usr/bin/defaults write "$task_id" secondaryWidget -string none
 /usr/bin/defaults write "$task_id" edge -string left
+if [[ "$task_scenario" == autohide ]]; then
+    /usr/bin/defaults write "$task_id" autoHide -bool true
+    /usr/bin/defaults write "$task_id" widget -string clock
+    /usr/bin/defaults write "$task_id" secondaryWidget -string timer
+    /usr/bin/defaults write "$task_id" clockSeconds -bool true
+fi
 mkdir -p "${task_output:h}"
 task_mode=idle; if [[ "${SMOKE_LIFECYCLE:-0}" == 1 ]]; then task_mode=lifecycle; fi
 printf 'Starting isolated %s probe: 15-second warmup + %s seconds\n' "$task_mode" "$task_seconds"
@@ -41,7 +53,8 @@ if [[ "${SMOKE_LIFECYCLE:-0}" == 1 ]]; then
 import os, subprocess, sys, time
 binary, owner=sys.argv[1], int(sys.argv[2]); time.sleep(1)
 restored=subprocess.run([binary,'--restore-system-dock'],capture_output=True,text=True,timeout=8,check=True)
-if 'восстановлен' not in restored.stdout: raise SystemExit('Owner did not acknowledge Dock recovery request: '+restored.stdout.strip())
+# The nonce-correlated command exits successfully only after acknowledgement;
+# its localized display text is not part of the CLI contract.
 subprocess.run([binary,'--settings'],capture_output=True,text=True,timeout=8,check=True)
 os.kill(owner,0)
 print('PASS: live owner restore acknowledgement and second-instance activation')
@@ -54,10 +67,15 @@ else
 fi
 [[ -f "$task_output" ]] || { cat "$task_stage/session.log"; printf 'Probe did not produce a report\n' >&2; exit 1; }
 if /usr/bin/defaults read "$task_id" platform.activeSession >/dev/null 2>&1; then printf 'Session marker was not cleared on normal exit\n' >&2; exit 1; fi
-python3 - "$task_output" "${SMOKE_LIFECYCLE:-0}" <<'PY'
+python3 - "$task_output" "${SMOKE_LIFECYCLE:-0}" "$task_scenario" "$task_stage/source-manifest.json" <<'PY'
 import json,pathlib,sys
 path=pathlib.Path(sys.argv[1]); value=json.loads(path.read_text())
-value['scenario']='Lifecycle smoke with settings open; not an idle measurement' if sys.argv[2]=='1' else 'Visible native panel, 4 installed apps, widgets/integrations/autoHide/followMouse off, settings closed, isolated bundle ID'
+value['scenario'] = ('Lifecycle smoke with settings open; not an idle measurement' if sys.argv[2]=='1'
+    else 'Auto-hide enabled, 4 apps, clock with seconds + idle focus widget, integrations off, settings closed, isolated bundle ID' if sys.argv[3]=='autohide'
+    else 'Visible native panel, 4 installed apps, widgets/integrations/autoHide/followMouse off, settings closed, isolated bundle ID')
+path.write_text(json.dumps(value,indent=2,sort_keys=True)+'\n')
+manifest=json.loads(pathlib.Path(sys.argv[4]).read_text())
+value['sourceBuild']={key:manifest[key] for key in ['version','build','architecture','commit','dirty']}
 path.write_text(json.dumps(value,indent=2,sort_keys=True)+'\n')
 print(path.read_text())
 PY

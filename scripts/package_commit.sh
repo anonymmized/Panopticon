@@ -4,8 +4,8 @@
 set -euo pipefail
 cd "${0:A:h:h}"
 [[ $# == 2 ]] || { printf 'Usage: SIGN_IDENTITY="Developer ID Application: …" ./scripts/package_commit.sh ref output-dir\n' >&2; exit 2; }
-: "${SIGN_IDENTITY:?A Developer ID Application identity is required for a release candidate}"
-[[ "$SIGN_IDENTITY" != - ]] || { printf 'Release candidates require Developer ID\n' >&2; exit 1; }
+: "${SIGN_IDENTITY:?A Developer ID Application identity is required for signed distribution}"
+[[ "$SIGN_IDENTITY" != - ]] || { printf 'Signed distribution requires Developer ID\n' >&2; exit 1; }
 task_commit=$(git rev-parse --verify "$1^{commit}")
 task_output="${2:A}"
 task_stage=$(mktemp -d "${TMPDIR:-/private/tmp}/newmacbar-release.XXXXXX")

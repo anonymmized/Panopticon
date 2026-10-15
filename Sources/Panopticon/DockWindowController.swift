@@ -158,14 +158,15 @@ final class DockWindowController {
         updatePassthrough()
     }
 
-    func updatePassthrough(at screenPoint: NSPoint = NSEvent.mouseLocation) {
+    func updatePassthrough(at screenPoint: NSPoint? = nil) {
         guard model.barVisible, !hidden, panel.isVisible else {
             panel.ignoresMouseEvents = true
             bar.updatePointer(nil)
             return
         }
-        panel.updateMousePassthrough(for: bar, at: screenPoint)
-        bar.updatePointer(bar.convert(panel.convertPoint(fromScreen: screenPoint), from: nil))
+        let point = screenPoint ?? NSEvent.mouseLocation
+        panel.updateMousePassthrough(for: bar, at: point)
+        bar.updatePointer(bar.convert(panel.convertPoint(fromScreen: point), from: nil))
     }
 
     func reveal() {
@@ -188,7 +189,7 @@ final class DockWindowController {
 
     func tick(
         keepVisible: Bool, now: Date = Date(), mouseLocation: NSPoint = NSEvent.mouseLocation,
-        buttonsPressed: Bool = NSEvent.pressedMouseButtons != 0
+        buttonsPressed: Bool? = nil
     ) {
         guard let placement else { return }
         // Date is injectable for deterministic panel regressions; the visibility
@@ -197,17 +198,18 @@ final class DockWindowController {
         let wasHidden = hidden
         visibility.configure(enabled: model.barVisible, autoHide: model.autoHide, now: time)
         let nearEdge = placement.trigger.contains(mouseLocation)
+        let pressed = buttonsPressed ?? ((nearEdge || !hidden || bar.hasActiveDrag) && NSEvent.pressedMouseButtons != 0)
         if !hidden || nearEdge || panel.isVisible || visibility.isOverviewActive {
             visibility.setOverview(overviewActive(), now: time)
         }
-        let point = bar.convert(panel.convertPoint(fromScreen: mouseLocation), from: nil)
-        let inside = !hidden && bar.containsInteractivePoint(point)
+        let inside = !hidden && bar.containsInteractivePoint(
+            bar.convert(panel.convertPoint(fromScreen: mouseLocation), from: nil))
         visibility.tick(now: time, nearEdge: nearEdge, inside: inside, keepVisible: keepVisible,
-            buttonsPressed: buttonsPressed, dragging: bar.hasActiveDrag || (buttonsPressed && pointerIsDragging && nearEdge))
+            buttonsPressed: pressed, dragging: bar.hasActiveDrag || (pressed && pointerIsDragging && nearEdge))
         if wasHidden != hidden || targetHidden != (hidden || !model.barVisible) {
             apply(placement, animated: true)
         }
-        updatePassthrough()
+        updatePassthrough(at: mouseLocation)
     }
 
     func stop() {

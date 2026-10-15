@@ -246,7 +246,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         timer?.tolerance = frequent ? 0.02 : 0.15
     }
     func pulse() {
-        updateMousePassthrough()
         let now = Date()
         if now.timeIntervalSince(lastBadgesPoll) >= 3 {
             lastBadgesPoll = now

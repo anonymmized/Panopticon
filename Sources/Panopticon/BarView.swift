@@ -74,8 +74,6 @@ final class BarView: NSView, NSDraggingSource {
         cachedLayout = result; return result
     }
     func preparePresentation() {
-        let currentIDs = Set(model.items.map(\.id))
-        icons = icons.filter { currentIDs.contains($0.key) }
         systemReduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         cachedLayout = PanelContentLayout(model: model, availableLength: availableLength, reduceMotion: motionReduced)
     }
