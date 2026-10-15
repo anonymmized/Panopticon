@@ -7,6 +7,8 @@ if CommandLine.arguments.contains("--self-test") {
     runPanelSelfTests()
 } else if CommandLine.arguments.contains("--render-review") {
     renderInterfaceFixtures()
+} else if CommandLine.arguments.contains("--render-docs") {
+    renderDocumentationAssets()
 } else if CommandLine.arguments.contains("--ui-benchmark") {
     runPresentationBenchmark()
 } else if CommandLine.arguments.contains("--ui-review") {

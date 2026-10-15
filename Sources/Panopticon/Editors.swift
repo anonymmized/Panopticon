@@ -162,15 +162,13 @@ struct ParameterSlider: View {
         label.contains("%")
             ? "%" : (label.hasPrefix("×") ? "×" : (label.split(separator: " ").last.map(String.init) ?? ""))
     }
-    private static let formatter: NumberFormatter = {
+    private static func formatted(_ value: Double) -> String {
         let f = NumberFormatter()
+        f.locale = Localization.shared.locale
         f.numberStyle = .decimal
         f.maximumFractionDigits = 2
         f.usesGroupingSeparator = false
-        return f
-    }()
-    private static func formatted(_ value: Double) -> String {
-        formatter.string(from: NSNumber(value: value)) ?? String(value)
+        return f.string(from: NSNumber(value: value)) ?? String(value)
     }
     private func commit() {
         let input = draft.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: ",", with: ".")
@@ -186,6 +184,9 @@ struct ParameterSlider: View {
                     .focused($editing).onSubmit { commit() }
                     .onChange(of: editing) { if !$0 { commit() } }
                     .onChange(of: value) { draft = Self.formatted($0 * scale) }
+                    .onChange(of: localization.code) { _ in
+                        if !editing { draft = Self.formatted(value * scale) }
+                    }
                     .font(.system(size: 11, design: .monospaced)).textFieldStyle(.roundedBorder)
                     .multilineTextAlignment(.trailing).frame(width: 58).accessibilityLabel(
                         title + L(" — точное значение"))

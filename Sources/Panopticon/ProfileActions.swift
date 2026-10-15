@@ -105,10 +105,7 @@ extension BarModel {
     }
     func applyProfile(_ profile: DockProfile) {
         batch {
-            pinned = profile.pinned.filter {
-                FileManager.default.fileExists(atPath: $0)
-                    && Bundle(url: URL(fileURLWithPath: $0))?.bundleIdentifier != nil
-            }.map { DockItem(url: URL(fileURLWithPath: $0)) }
+            pinned = Self.restoredPins(profile.pinned)
             collections = profile.collections
             quickLinks = profile.links
             profile.appearance.sanitized().apply(to: self)

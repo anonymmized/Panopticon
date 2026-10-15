@@ -10,7 +10,7 @@ python3 - "$task_app" <<'VERIFY'
 import hashlib, json, pathlib, plistlib, sys
 app=pathlib.Path(sys.argv[1]); info=plistlib.loads((app/'Contents/Info.plist').read_bytes())
 manifest=json.loads(pathlib.Path('build/app-manifest.json').read_text())
-if manifest['version'] != info['CFBundleShortVersionString'] or manifest['build'] != info['CFBundleVersion'] or manifest['binarySHA256'] != hashlib.sha256((app/'Contents/MacOS/Panopticon').read_bytes()).hexdigest():
+if manifest['version'] != info['CFBundleShortVersionString'] or manifest['build'] != info['CFBundleVersion'] or manifest.get('channel', info.get('PanopticonBuildChannel', 'development')) != info.get('PanopticonBuildChannel', 'development') or manifest['binarySHA256'] != hashlib.sha256((app/'Contents/MacOS/Panopticon').read_bytes()).hexdigest():
     raise SystemExit('App and manifest differ. Rebuild before packaging.')
 VERIFY
 task_signing=$(python3 -c 'import json; print(json.load(open("build/app-manifest.json"))["signing"])')

@@ -42,10 +42,10 @@ struct OnboardingView: View {
                         DockPreview(model: model)
                         Picker(L("Край экрана"), selection: $model.edge) {
                             ForEach(DockEdge.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) }
-                        }.pickerStyle(.segmented)
+                        }.id(localization.code).pickerStyle(.segmented)
                         Picker(L("Тема панели"), selection: $model.theme) {
                             ForEach(DockTheme.allCases) { Text($0.title).tag($0.rawValue) }
-                        }
+                        }.id(localization.code)
                         ParameterSlider(
                             title: L("Размер иконок"), value: $model.iconSize, range: 28...60,
                             label: "\(Int(model.iconSize)) pt")

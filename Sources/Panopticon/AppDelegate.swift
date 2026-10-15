@@ -246,7 +246,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         timer?.tolerance = frequent ? 0.02 : 0.15
     }
     func pulse() {
-        updateMousePassthrough()
         let now = Date()
         if now.timeIntervalSince(lastBadgesPoll) >= 3 {
             lastBadgesPoll = now
@@ -460,6 +459,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     func languageChanged() {
         rebuildApplicationMenu(); rebuildStatusMenu()
+        onboardingWindow?.title = L("Добро пожаловать в Panopticon")
         dock.relocalizeStatus(); agenda.message = Localization.shared.status(agenda.message)
         music.relocalizeStatus(); bar.refresh()
     }
@@ -596,10 +596,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             window.title = "Panopticon"
             window.titlebarAppearsTransparent = true
             window.backgroundColor = .windowBackgroundColor
-            window.contentView = NSHostingView(
+            let host = NSHostingView(
                 rootView: SettingsView(
                     model: model, dock: dock, focus: focus, catalog: catalog, agenda: agenda))
-            window.minSize = NSSize(width: 760, height: 540)
+            host.sizingOptions = []
+            window.contentView = host
+            window.contentMinSize = NSSize(width: 760, height: 540)
             window.setFrameAutosaveName("Panopticon.Settings")
             window.isReleasedWhenClosed = false
             window.delegate = self

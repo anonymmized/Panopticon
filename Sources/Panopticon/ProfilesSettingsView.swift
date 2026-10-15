@@ -110,7 +110,7 @@ struct ProfilesView: View {
                 Toggle(L("Подсветка при наведении"), isOn: $model.hoverGlow).font(.system(size: 11))
                 Picker(L("Анимации панели"), selection: panelMotionBinding) {
                     ForEach(DockMotionMode.allCases) { Text($0.title).tag($0.rawValue) }
-                }.font(.system(size: 11))
+                }.id(localization.code).font(.system(size: 11))
                 Text(
                     L("В покое анимации не работают. В режиме «Как в macOS» учитывается системное уменьшение движения. «Полные анимации» включает увеличение и прыжки только для этой панели.")
                 ).font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(4)

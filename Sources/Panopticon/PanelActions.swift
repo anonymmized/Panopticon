@@ -1,7 +1,6 @@
 import AppKit
 
-/// Presentation adapter for 0.5's model API. Replace these operations with C02's
-/// transactional commands at integration; this file never deletes source files.
+/// Scoped panel mutations. These operations never delete source files.
 enum PanelActions {
     static let item = NSPasteboard.PasteboardType("app.panopticon.item")
     static let link = NSPasteboard.PasteboardType("app.newmacbar.link")

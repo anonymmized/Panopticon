@@ -63,3 +63,22 @@ and the mounted image. See [Distribution](DISTRIBUTION.md) for universal builds.
 Never commit build products, caches, installers, signing credentials or personal
 profile exports. Do not push, publish or upload for notarization without an explicit
 owner instruction. Local packaging performs no publication.
+
+## Documentation images
+
+Run `.build/release/Panopticon --render-docs` on macOS to regenerate the six English
+and Russian images in `docs/assets`. It renders real panel and settings components
+with disposable demonstration preferences. Review every image before committing;
+no personal events, file names, accounts or externally downloaded assets belong there.
+GitHub README typography uses native Markdown; the hero image carries the custom
+wordmark, system-font typography and gradient treatment.
+
+## Local performance and lifecycle probes
+
+`./scripts/run_platform_probe.sh 30 build/idle.json` measures a visible panel with
+widgets and integrations disabled. Set `PROBE_SCENARIO=autohide` for clock-seconds and
+idle-focus widgets with auto-hide. `SMOKE_LIFECYCLE=1 PROBE_LANGUAGE=en` additionally
+checks owner acknowledgement and second-instance activation in English; that mode
+opens settings and must not be interpreted as an idle measurement. Every probe uses
+an isolated bundle identity and preferences, disables Dock replacement and connections,
+and removes its generated state on exit. Reports identify the source build.

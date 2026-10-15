@@ -70,7 +70,7 @@ extension SettingsView {
             card(L("Движение")) {
                 Picker(L("Анимации панели"), selection: panelMotionBinding) {
                     ForEach(DockMotionMode.allCases) { Text($0.title).tag($0.rawValue) }
-                }
+                }.id(localization.code)
                 if model.motionMode == "system", NSWorkspace.shared.accessibilityDisplayShouldReduceMotion || model.reduceMotion {
                     Label(L("Включено уменьшение движения: иконки подсвечиваются без увеличения. Выбери «Полные анимации», чтобы включить волну и прыжки."), systemImage: "figure.stand")
                         .font(Studio.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)

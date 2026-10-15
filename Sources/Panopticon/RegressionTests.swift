@@ -22,6 +22,13 @@ func runRegressionTests(defaults: UserDefaults, model: BarModel) throws {
     let data = try ProfileArchive(profile: model.profiles[0]).data()
     let imported = try ProfileArchive.decode(data)
     precondition(imported.id != model.profiles[0].id && imported.appearance == model.profiles[0].appearance, "Portable profile round trip")
+    var offline = imported
+    offline.pinned = ["/Volumes/Disconnected/Example.app", "/Volumes/Disconnected/Example.app", "relative.app"]
+    let originalPins = model.pinned
+    model.applyProfile(offline)
+    precondition(model.pinned.map(\.id) == ["/Volumes/Disconnected/Example.app"], "Applying a profile must preserve offline apps and normalize duplicates")
+    precondition(BarModel(defaults: defaults, observe: false).pinned.map(\.id) == offline.pinned.prefix(1).map { $0 }, "Offline profile pins survive a restart")
+    model.pinned = originalPins; model.save()
     var broken = model.profiles[0]; broken.appearance.iconSize = -500; broken.appearance.magnification = 900; broken.appearance.widget = "unknown"
     let safe = try ProfileArchive.decode(ProfileArchive(profile: broken).data())
     precondition(safe.appearance.iconSize == 28 && safe.appearance.magnification == 1.8 && safe.appearance.widget == "clock", "Imported preferences limits")
@@ -67,6 +74,11 @@ func runRegressionTests(defaults: UserDefaults, model: BarModel) throws {
     let running = FocusTimer(defaults: defaults)
     precondition(running.isRunning && running.remaining > 295, "Running timer restoration")
     focus.reset(minutes: 25); running.reset(minutes: 25)
+    focus.reset(minutes: .nan)
+    precondition(focus.remaining == 1500 && focus.text == "25:00", "Malformed timer input cannot produce a non-finite countdown")
+    defaults.set(["remaining": 5000.0, "duration": 300.0], forKey: "focusSession")
+    let bounded = FocusTimer(defaults: defaults)
+    precondition(bounded.remaining == 300 && bounded.progress == 0, "Restore remaining time within the saved session duration")
 
     let backup: [String: Any] = ["autohide": false, "autohide-delay": 0.3, "autohide-time-modifier": "__absent__"]
     defaults.set(backup, forKey: "systemDockBackup")
@@ -134,5 +146,6 @@ func runPanelSelfTests() {
     }
     runDragDropTests(bar: bar, model: model, panel: panel)
     runWindowControllerTests()
+    runSettingsLayoutTests()
     print("PASS: panel passthrough, re-entry, first click, glass hit-test, focus and native menu")
 }

@@ -33,6 +33,7 @@ mkdir "$task_stage/mount"
 hdiutil attach -quiet -readonly -nobrowse -mountpoint "$task_stage/mount" "$task_image"; task_mounted=true
 task_app="$task_stage/mount/Panopticon.app"
 codesign --verify --deep --strict "$task_app"
+python3 scripts/check_bundle.py "$task_app"
 [[ "$(readlink "$task_stage/mount/Applications")" == /Applications ]]
 python3 - "$task_app" "$task_manifest" <<'PY'
 import hashlib, json, pathlib, plistlib, subprocess, sys
@@ -41,7 +42,7 @@ info=plistlib.loads((app/'Contents/Info.plist').read_bytes())
 binary=app/'Contents/MacOS/Panopticon'
 actual=set(subprocess.check_output(['lipo','-archs',str(binary)],text=True).split())
 expected={'arm64','x86_64'} if manifest['architecture']=='universal' else {manifest['architecture']}
-if actual!=expected or info['CFBundleShortVersionString']!=manifest['version'] or info['CFBundleVersion']!=manifest['build'] or hashlib.sha256(binary.read_bytes()).hexdigest()!=manifest['binarySHA256']:
+if actual!=expected or info['CFBundleShortVersionString']!=manifest['version'] or info['CFBundleVersion']!=manifest['build'] or manifest.get('channel', info.get('PanopticonBuildChannel', 'development')) != info.get('PanopticonBuildChannel', 'development') or hashlib.sha256(binary.read_bytes()).hexdigest()!=manifest['binarySHA256']:
     raise SystemExit('Application does not match distribution manifest')
 if manifest['notarized']:
     subprocess.run(['xcrun','stapler','validate',str(app)],check=True)

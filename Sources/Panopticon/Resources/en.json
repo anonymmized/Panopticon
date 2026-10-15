@@ -703,5 +703,7 @@
   "Импорт настроек": "Import settings",
   "таймер запущен": "timer running",
   "таймер остановлен": "timer stopped",
-  "macOS не обнаружила объект автозапуска. Проверь «Объекты входа» в настройках системы.": "macOS could not find the login item. Check Login Items in System Settings."
+  "macOS не обнаружила объект автозапуска. Проверь «Объекты входа» в настройках системы.": "macOS could not find the login item. Check Login Items in System Settings.",
+  "Готов к началу": "Ready when you are",
+  "Кандидат на выпуск": "Release candidate"
 }

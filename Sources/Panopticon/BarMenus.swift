@@ -198,7 +198,11 @@ extension BarView {
         undoRemoval = { [weak model] in
             guard let model, model.spaces.contains(where: { $0.id == space }) else { return }
             model.selectSpace(space)
-            model.add(item.url, at: index)
+            guard !model.pinned.contains(where: {
+                $0.id == item.id || (item.bundleID != nil && $0.bundleID == item.bundleID)
+            }) else { return }
+            // Restore a captured launcher even when its volume is now offline.
+            model.batch { model.pinned.insert(item, at: min(index, model.pinned.count)) }
         }
     }
     func removeLinkWithUndo(_ id: String) {

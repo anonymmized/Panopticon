@@ -36,11 +36,13 @@ final class UIReviewHarness: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.title = L("Panopticon — изолированная проверка")
         window.isReleasedWhenClosed = false
         window.delegate = self
-        window.minSize = NSSize(width: 760, height: 540)
-        window.contentView = NSHostingView(
+        window.contentMinSize = NSSize(width: 760, height: 540)
+        let host = NSHostingView(
             rootView: SettingsView(
                 model: model, dock: dock, focus: FocusTimer(defaults: defaults), catalog: catalog,
                 agenda: CalendarController(), ui: UIStateStore(defaults: defaults)))
+        host.sizingOptions = []
+        window.contentView = host
         self.window = window
         NSApp.setActivationPolicy(.regular)
         NSApp.mainMenu = ApplicationMenus.reviewMenu()

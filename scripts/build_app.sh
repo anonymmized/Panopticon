@@ -28,8 +28,9 @@ fi
 cp Sources/Panopticon/Resources/*.json "$task_app/Contents/Resources/"
 cp -R resources/en.lproj resources/ru.lproj "$task_app/Contents/Resources/"
 cp resources/Info.plist "$task_app/Contents/Info.plist"
-cp resources/AppIcon.icns "$task_app/Contents/resources/"
+cp resources/AppIcon.icns "$task_app/Contents/Resources/"
 plutil -lint "$task_app/Contents/Info.plist" resources/Panopticon.entitlements
+python3 scripts/check_bundle.py "$task_app" --current-source
 # The bundle's plist is the single version source for app, installer and manifest.
 task_identity="${SIGN_IDENTITY:--}"
 task_signing=adhoc
@@ -49,6 +50,7 @@ import hashlib, json, pathlib, plistlib, sys
 app, arch, signing, commit, dirty = pathlib.Path(sys.argv[1]), *sys.argv[2:]
 info = plistlib.loads((app / 'Contents/Info.plist').read_bytes())
 manifest = dict(version=info['CFBundleShortVersionString'], build=info['CFBundleVersion'], architecture=arch,
+                channel=info.get('PanopticonBuildChannel', 'development'),
                 minimumOS=info['LSMinimumSystemVersion'], signing=signing, notarized=False, commit=commit,
                 dirty=dirty == 'true', binarySHA256=hashlib.sha256((app/'Contents/MacOS/Panopticon').read_bytes()).hexdigest())
 pathlib.Path('build/app-manifest.json').write_text(json.dumps(manifest, indent=2, sort_keys=True)+'\n')

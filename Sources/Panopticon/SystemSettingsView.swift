@@ -25,7 +25,7 @@ extension SettingsView {
                     isOn: Binding(get: { login.selected }, set: { login.setEnabled($0) }))
                 Text(login.summary).font(Studio.caption).foregroundStyle(.secondary)
                 if !login.error.isEmpty {
-                    Label(login.error, systemImage: "exclamationmark.triangle").font(Studio.caption)
+                    Label(localization.status(login.error), systemImage: "exclamationmark.triangle").font(Studio.caption)
                         .foregroundStyle(.orange)
                 }
                 Button(L("Объекты входа в macOS…")) { login.openSettings() }
@@ -142,6 +142,10 @@ extension SettingsView {
                 Text(
                     L("Версия \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development") · \(LocalDiagnostics.architecture) · macOS 13+")
                 ).font(Studio.caption).foregroundStyle(.secondary)
+                if Bundle.main.object(forInfoDictionaryKey: "PanopticonBuildChannel") as? String == "release-candidate" {
+                    Label(L("Кандидат на выпуск"), systemImage: "shippingbox")
+                        .font(Studio.caption).foregroundStyle(.secondary)
+                }
                 Text(
                     L("Без подписки, телеметрии и облачной учётной записи. Календарь использует источники macOS, а кнопки открытия — выбранные тобой приложения.")
                 ).font(Studio.body).foregroundStyle(.secondary)

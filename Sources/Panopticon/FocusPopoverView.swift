@@ -18,13 +18,15 @@ struct FocusPopoverView: View {
                     Text(
                         focus.remaining <= 0
                             ? L("Сессия завершена")
-                            : focus.isRunning ? L("Можно сосредоточиться") : L("Готов к продолжению")
+                            : focus.isRunning ? L("Можно сосредоточиться")
+                                : focus.hasStarted ? L("Готов к продолжению") : L("Готов к началу")
                     ).font(Studio.caption).foregroundStyle(.secondary)
                 }
             }.frame(width: 190, height: 190).accessibilityElement(children: .combine).accessibilityLabel(
                 L("Осталось \(focus.text), \(focus.isRunning ? L("таймер запущен") : L("таймер остановлен"))"))
             HStack {
-                Button(focus.isRunning ? L("Пауза") : focus.remaining <= 0 ? L("Новая сессия") : L("Начать")) {
+                Button(focus.isRunning ? L("Пауза") : focus.remaining <= 0 ? L("Новая сессия")
+                    : focus.hasStarted ? L("Продолжить") : L("Начать")) {
                     focus.toggle(minutes: model.timerMinutes)
                 }.buttonStyle(.borderedProminent)
                 Button(L("Сбросить")) { focus.reset(minutes: model.timerMinutes) }

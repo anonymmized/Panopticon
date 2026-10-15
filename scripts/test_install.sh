@@ -24,4 +24,17 @@ fi
 codesign --verify --deep --strict "$task_stage/Applications/Panopticon.app"
 task_after=$(shasum -a 256 "$task_stage/Applications/Panopticon.app/Contents/MacOS/Panopticon" | cut -d' ' -f1)
 [[ "$task_original" == "$task_after" ]]
-printf 'PASS: temporary install, update backup, simulated move failure, rollback and signature\n'
+cat > "$task_stage/bin/mv" <<'MOCK'
+#!/bin/zsh
+if [[ "$1" == */.Panopticon-install.*/Panopticon.app || "$1" == */.Panopticon-install.*/previous.app ]]; then exit 24; fi
+exec /bin/mv "$@"
+MOCK
+if ZDOTDIR="$task_stage/empty-zsh" PATH="$task_stage/bin:$PATH" INSTALL_DIR="$task_stage/Applications" /bin/zsh -f ./scripts/install_app.sh; then
+    printf 'FAIL: rollback failure was accepted\n' >&2; exit 1
+fi
+task_preserved=("$task_stage/Applications/".Panopticon-install.*/previous.app(N))
+(( ${#task_preserved} == 1 ))
+codesign --verify --deep --strict "${task_preserved[1]}"
+task_preserved_hash=$(shasum -a 256 "${task_preserved[1]}/Contents/MacOS/Panopticon" | cut -d' ' -f1)
+[[ "$task_original" == "$task_preserved_hash" ]]
+printf 'PASS: temporary install, verified backup, failed install rollback, failed rollback preservation and signature\n'
