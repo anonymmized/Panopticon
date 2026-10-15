@@ -32,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var hoverDeadline = Date.distantPast
     var screenObserver: NSObjectProtocol?
     var settingsObserver: NSObjectProtocol?
+    var languageObserver: NSObjectProtocol?
     var desktopObserver: NSObjectProtocol?
     var spaceHotKeys: [UInt32] = []
     var folderPopover: NSPopover?
@@ -41,7 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        let activation = NSNotification.Name("app.newmacbar.desktop.showPreferences")
+        let activation = NSNotification.Name(AppIdentity.preferencesDomain + ".showPreferences")
         let instances = NSWorkspace.shared.runningApplications.filter { $0.bundleIdentifier == Bundle.main.bundleIdentifier && !$0.isTerminated }
         let winner = instances.min { a, b in
             let first = a.launchDate ?? .distantFuture; let second = b.launchDate ?? .distantFuture
@@ -61,11 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             model.cornerRadius = 20; model.magnification = 1.35; model.opacity = 0.08
             UserDefaults.standard.set(2, forKey: "layoutVersion")
         }
-        let mainMenu = NSMenu(); let appMenuItem = NSMenuItem(); let appMenu = NSMenu()
-        let preferences = NSMenuItem(title: "Настройки…", action: #selector(showSettings), keyEquivalent: ","); preferences.target = self; appMenu.addItem(preferences)
-        let search = NSMenuItem(title: "Быстрый поиск…", action: #selector(showLauncher), keyEquivalent: "k"); search.target = self; appMenu.addItem(search)
-        appMenu.addItem(.separator()); appMenu.addItem(withTitle: "Завершить NewMacBar", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        appMenuItem.submenu = appMenu; mainMenu.addItem(appMenuItem); NSApp.mainMenu = mainMenu
+        rebuildApplicationMenu()
         panel = BarPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isOpaque = false; panel.backgroundColor = .clear; panel.hasShadow = false
         // Mission Control reveals the native Dock. A stationary panel stays
@@ -74,7 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
         panel.hidesOnDeactivate = false; panel.isReleasedWhenClosed = false
-        panel.title = "NewMacBar"
+        panel.title = "Panopticon"
         let root = PassthroughView()
         bar = BarView(model: model, music: music, focus: focus, agenda: agenda)
         root.addSubview(bar.glass); root.addSubview(bar)
@@ -104,16 +101,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         focus.onChange = { [weak self] in self?.bar.needsDisplay = true }
         music.onChange = { [weak self] in self?.bar.needsDisplay = true }
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.image = NSImage(systemSymbolName: "rectangle.bottomthird.inset.filled", accessibilityDescription: "NewMacBar")
-        let menu = NSMenu()
-        menu.addItem(withTitle: "NewMacBar — бесплатно", action: nil, keyEquivalent: "")
-        menu.addItem(.separator())
-        let settings = menu.addItem(withTitle: "Настройки…", action: #selector(showSettings), keyEquivalent: ","); settings.target = self
-        let statusSearch = menu.addItem(withTitle: "Быстрый поиск…  ⌃⌥Пробел", action: #selector(showLauncher), keyEquivalent: ""); statusSearch.target = self; statusSearch.tag = 301
-        let show = menu.addItem(withTitle: "Показать панель", action: #selector(reveal), keyEquivalent: ""); show.target = self
-        menu.addItem(.separator())
-        menu.addItem(withTitle: "Завершить", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        statusItem.menu = menu
+        statusItem.button?.image = NSImage(systemSymbolName: "rectangle.bottomthird.inset.filled", accessibilityDescription: "Panopticon")
+        rebuildStatusMenu()
+        languageObserver = NotificationCenter.default.addObserver(forName: Localization.didChange, object: nil, queue: .main) { [weak self] _ in
+            self?.languageChanged()
+        }
         screenObserver = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in self?.updatePanel() }
         preferencesChanged(); updateDesktop()
         // A nil view hit-test cannot forward a click to another application.
@@ -129,6 +121,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         configurePulse()
         updateMousePassthrough()
         if ProcessInfo.processInfo.arguments.contains("--settings") { showSettings() }
+    }
+    func rebuildApplicationMenu() {
+        let mainMenu = NSMenu(); let appMenuItem = NSMenuItem(); let appMenu = NSMenu()
+        let preferences = NSMenuItem(title: L("Настройки…"), action: #selector(showSettings), keyEquivalent: ","); preferences.target = self; appMenu.addItem(preferences)
+        let search = NSMenuItem(title: L("Быстрый поиск…"), action: #selector(showLauncher), keyEquivalent: "k"); search.target = self; appMenu.addItem(search)
+        appMenu.addItem(.separator()); appMenu.addItem(withTitle: L("Завершить Panopticon"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenuItem.submenu = appMenu; mainMenu.addItem(appMenuItem); NSApp.mainMenu = mainMenu
+    }
+    func rebuildStatusMenu() {
+        let menu = NSMenu()
+        menu.addItem(withTitle: L("Panopticon — бесплатно"), action: nil, keyEquivalent: "")
+        menu.addItem(.separator())
+        let settings = menu.addItem(withTitle: L("Настройки…"), action: #selector(showSettings), keyEquivalent: ","); settings.target = self
+        let statusSearch = menu.addItem(withTitle: L("Быстрый поиск…  ⌃⌥Пробел"), action: #selector(showLauncher), keyEquivalent: ""); statusSearch.target = self; statusSearch.tag = 301
+        let show = menu.addItem(withTitle: L("Показать панель"), action: #selector(reveal), keyEquivalent: ""); show.target = self
+        menu.addItem(.separator())
+        menu.addItem(withTitle: L("Завершить"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        statusItem.menu = menu
+        updateProfileMenu()
+        statusItem?.menu?.item(withTag: 301)?.title = L("Быстрый поиск…  ") + (model.launcherEnabled && model.launcherShortcutAvailable ? model.launcherShortcutLabel : "")
+    }
+    func languageChanged() {
+        rebuildApplicationMenu(); rebuildStatusMenu()
+        dock.message = Localization.shared.status(dock.message)
+        agenda.message = Localization.shared.status(agenda.message)
+        music.relocalizeStatus()
+        // Repaint without revealing a hidden panel or mutating layout/preferences.
+        bar.refresh()
     }
     var screen: NSScreen? { let screens = NSScreen.screens; return screens.isEmpty ? nil : screens[min(max(0, model.screenIndex), screens.count - 1)] }
     func updatePanel(animated: Bool = false) {
@@ -223,7 +243,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         configurePulse()
         if model.launcherEnabled && (globalShortcut == nil || lastShortcutChoice != model.launcherShortcutChoice) { globalShortcut = nil; lastShortcutChoice = model.launcherShortcutChoice; globalShortcut = GlobalShortcut(choice: model.launcherShortcutChoice) { [weak self] in self?.showLauncher() }; model.launcherShortcutAvailable = globalShortcut?.registered == true }
         if !model.launcherEnabled { globalShortcut = nil; model.launcherShortcutAvailable = false }
-        statusItem?.menu?.item(withTag: 301)?.title = "Быстрый поиск…  " + (model.launcherEnabled && model.launcherShortcutAvailable ? model.launcherShortcutLabel : "")
+        statusItem?.menu?.item(withTag: 301)?.title = L("Быстрый поиск…  ") + (model.launcherEnabled && model.launcherShortcutAvailable ? model.launcherShortcutLabel : "")
         let agendaConfig = "\(model.calendarEventsEnabled)-\(model.selectedCalendarIDs.sorted())"
         agenda.enabled = model.calendarEventsEnabled; agenda.selectedIDs = model.selectedCalendarIDs
         if agendaConfig != lastAgendaConfig { lastAgendaConfig = agendaConfig; agenda.refresh(force: true) }
@@ -256,7 +276,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func updateProfileMenu() {
         guard let menu = statusItem?.menu else { return }
         for item in menu.items where item.tag == 302 { menu.removeItem(item) }
-        let spaceGroup = NSMenuItem(title: "Пространства", action: nil, keyEquivalent: ""); spaceGroup.tag = 302
+        let spaceGroup = NSMenuItem(title: L("Пространства"), action: nil, keyEquivalent: ""); spaceGroup.tag = 302
         let spaceMenu = NSMenu()
         for (index, space) in model.spaces.enumerated() {
             spaceMenu.addItem(ActionMenuItem(space.name + (index < 9 ? "  ⌃⌥\(index + 1)" : ""), checked: space.id == model.selectedSpaceID) { [weak self] in self?.model.selectSpace(space.id) })
@@ -264,7 +284,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         spaceGroup.submenu = spaceMenu; menu.insertItem(spaceGroup, at: min(4, menu.numberOfItems))
         for item in menu.items where item.tag == 300 { menu.removeItem(item) }
         if !model.profiles.isEmpty {
-            let group = NSMenuItem(title: "Профили панели", action: nil, keyEquivalent: ""); group.tag = 300
+            let group = NSMenuItem(title: L("Профили панели"), action: nil, keyEquivalent: ""); group.tag = 300
             let submenu = NSMenu()
             for profile in model.profiles { let item = NSMenuItem(title: profile.name, action: #selector(selectProfile(_:)), keyEquivalent: ""); item.target = self; item.representedObject = profile; submenu.addItem(item) }
             group.submenu = submenu; menu.insertItem(group, at: min(4, menu.numberOfItems))
@@ -279,6 +299,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let localMouseMonitor { NSEvent.removeMonitor(localMouseMonitor) }
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         if let settingsObserver { NotificationCenter.default.removeObserver(settingsObserver) }
+        if let languageObserver { NotificationCenter.default.removeObserver(languageObserver) }
         if let desktopObserver { NSWorkspace.shared.notificationCenter.removeObserver(desktopObserver) }
         for id in spaceHotKeys { HotKeys.shared.unregister(id) }
         if ownsSession { dock.restore() }
@@ -299,11 +320,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func showSettings() {
         if settingsWindow == nil {
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 990, height: 760), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
-            window.title = "NewMacBar"; window.titlebarAppearsTransparent = true
+            window.title = "Panopticon"; window.titlebarAppearsTransparent = true
             window.backgroundColor = NSColor(red: 0.075, green: 0.085, blue: 0.1, alpha: 1)
             window.contentView = NSHostingView(rootView: SettingsView(model: model, dock: dock, focus: focus, catalog: catalog, agenda: agenda)); window.minSize = NSSize(width: 920, height: 680)
-            window.setFrameAutosaveName("NewMacBar.Settings"); window.isReleasedWhenClosed = false; window.delegate = self
-            if !window.setFrameUsingName("NewMacBar.Settings") { window.center() }; settingsWindow = window
+            window.setFrameAutosaveName("Panopticon.Settings"); window.isReleasedWhenClosed = false; window.delegate = self
+            if !window.setFrameUsingName("Panopticon.Settings") { window.center() }; settingsWindow = window
         }
         NSApp.activate(ignoringOtherApps: true); settingsWindow?.makeKeyAndOrderFront(nil)
     }
@@ -311,7 +332,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 }
 
 func runSelfTests() {
-    let suite = "app.newmacbar.selftest.\(UUID().uuidString)"
+    let suite = "app.panopticon.selftest.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
     defaults.set([String](), forKey: "pinned")
     let model = BarModel(defaults: defaults, observe: false)
@@ -330,9 +351,9 @@ func runSelfTests() {
     model.remove(model.pinned[0]); precondition(model.pinned.count == 2, "Remove")
     model.widgetWidth = 212; model.widgetAccent = "mint"; model.widgetStyle = "compact"
     model.clockSeconds = true; model.replaceDock = false; model.hoverStyle = "scale"
-    let group = AppCollection(name: "Работа", paths: paths)
+    let group = AppCollection(name: L("Работа"), paths: paths)
     model.updateCollection(group)
-    var updated = group; updated.name = "Фокус"; updated.paths.removeLast()
+    var updated = group; updated.name = L("Фокус"); updated.paths.removeLast()
     model.updateCollection(updated)
     precondition(model.collections.count == 1 && model.collections[0] == updated, "Collection edit")
     let reloaded = BarModel(defaults: defaults, observe: false)
@@ -358,7 +379,7 @@ func runSelfTests() {
     model.calendarDestination = "web"; model.calendarWebURL = "https://calendar.google.com"
     model.calendarEventsEnabled = true; model.selectedCalendarIDs = ["test-calendar"]; model.launcherEnabled = false
     model.applyPreset("aurora")
-    model.saveProfile(name: "Работа")
+    model.saveProfile(name: L("Работа"))
     precondition(model.profiles.count == 1, "Create profile")
     let savedProfile = model.profiles[0]
     let before = ProfileAppearance(model)
@@ -378,11 +399,16 @@ func runSelfTests() {
     print("PASS: app validation, reorder, persistence, collections, timer, calendar routing, link validation, two widgets, profiles, atomic preset changes, launcher search")
 }
 
-if CommandLine.arguments.contains("--self-test") { runSelfTests() }
+if CommandLine.arguments.contains("--self-test") {
+    runLocalizationTests()
+    for language in [AppLanguage.english, .russian] {
+        Localization.shared.withTemporaryLanguage(language) { runSelfTests() }
+    }
+}
 else if CommandLine.arguments.contains("--panel-self-test") { runPanelSelfTests() }
 else if CommandLine.arguments.contains("--diagnostics") {
-    for instance in NSWorkspace.shared.runningApplications where instance.bundleIdentifier == "app.newmacbar.desktop" {
-        print("NewMacBar pid=\(instance.processIdentifier) terminated=\(instance.isTerminated) path=\(instance.bundleURL?.path ?? "unknown")")
+    for instance in NSWorkspace.shared.runningApplications where instance.bundleIdentifier == AppIdentity.preferencesDomain {
+        print("Panopticon pid=\(instance.processIdentifier) terminated=\(instance.isTerminated) path=\(instance.bundleURL?.path ?? "unknown")")
     }
 }
 else {

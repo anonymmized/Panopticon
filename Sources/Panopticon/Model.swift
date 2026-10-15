@@ -141,7 +141,7 @@ final class BarModel: ObservableObject {
             var ids = Set<String>()
             spaces = saved.filter { ids.insert($0.id).inserted }.prefix(30).map { space in
                 var space = space; space.name = SettingsRules.label(space.name)
-                if space.name.isEmpty { space.name = "Пространство" }
+                if space.name.isEmpty { space.name = L("Пространство") }
                 return space
             }
             selectedSpaceID = defaults.string(forKey: "selectedSpaceID") ?? spaces[0].id
@@ -151,8 +151,8 @@ final class BarModel: ObservableObject {
                 quickLinks = current.links; collections = current.collections
             }
         } else {
-            let primary = BarSpace(name: "Главное", paths: pinned.map(\.id), links: quickLinks, collections: collections)
-            spaces = [primary, BarSpace(name: "Работа", symbol: "briefcase"), BarSpace(name: "Отдых", symbol: "gamecontroller")]
+            let primary = BarSpace(name: L("Главное"), paths: pinned.map(\.id), links: quickLinks, collections: collections)
+            spaces = [primary, BarSpace(name: L("Работа"), symbol: "briefcase"), BarSpace(name: L("Отдых"), symbol: "gamecontroller")]
             selectedSpaceID = primary.id
         }
         recentAppPaths = defaults.stringArray(forKey: "recentAppPaths") ?? []

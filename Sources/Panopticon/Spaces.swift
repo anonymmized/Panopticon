@@ -13,7 +13,7 @@ struct BarSpace: Codable, Identifiable, Equatable {
 
 enum DockEdge: String, Codable, CaseIterable {
     case bottom, top, left, right
-    var title: String { ["bottom": "Снизу", "top": "Сверху", "left": "Слева", "right": "Справа"][rawValue]! }
+    var title: String { ["bottom": L("Снизу"), "top": L("Сверху"), "left": L("Слева"), "right": L("Справа")][rawValue]! }
     var isVertical: Bool { self == .left || self == .right }
     var popoverEdge: NSRectEdge {
         switch self { case .bottom: return .maxY; case .top: return .minY; case .left: return .maxX; case .right: return .minX }
@@ -24,7 +24,7 @@ extension BarModel {
     static let spaceSymbols = ["house", "briefcase", "gamecontroller", "music.note", "paintbrush", "hammer",
                                "book", "globe", "star", "heart", "bolt", "camera", "film", "message",
                                "folder", "terminal", "graduationcap", "leaf"]
-    var currentSpace: BarSpace { spaces.first { $0.id == selectedSpaceID } ?? BarSpace(name: "Главное") }
+    var currentSpace: BarSpace { spaces.first { $0.id == selectedSpaceID } ?? BarSpace(name: L("Главное")) }
     var selectedSpaceIndex: Int { spaces.firstIndex { $0.id == selectedSpaceID } ?? 0 }
     var dockEdge: DockEdge { DockEdge(rawValue: edge) ?? .bottom }
     var dockTheme: DockTheme { DockTheme(rawValue: theme) ?? .dark }

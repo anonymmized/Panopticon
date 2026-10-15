@@ -1,0 +1,5 @@
+"CFBundleName" = "Panopticon";
+"CFBundleDisplayName" = "Panopticon";
+"NSAppleEventsUsageDescription" = "Panopticon показывает текущий трек, управляет Spotify и Apple Music, а также очищает Корзину через Finder только по вашему запросу.";
+"NSCalendarsUsageDescription" = "Panopticon показывает ближайшие события в календарном виджете. Данные остаются на Mac.";
+"NSCalendarsFullAccessUsageDescription" = "Panopticon показывает ближайшие события в календарном виджете. Данные остаются на Mac; приложение не изменяет события.";

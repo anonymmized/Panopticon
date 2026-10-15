@@ -9,7 +9,7 @@ struct AgendaEvent: Identifiable, Equatable {
     let allDay: Bool
     let calendar: String
     let color: NSColor
-    var time: String { if allDay { return "Весь день" }; let f = DateFormatter(); f.dateFormat = "HH:mm"; return f.string(from: start) }
+    var time: String { if allDay { return L("Весь день") }; let f = DateFormatter(); f.dateFormat = "HH:mm"; return f.string(from: start) }
     func overlaps(_ day: Date, in calendar: Calendar = .current) -> Bool {
         let beginning = calendar.startOfDay(for: day)
         guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: beginning) else { return false }
@@ -29,14 +29,14 @@ enum MonthGrid {
 }
 
 final class CalendarController: ObservableObject {
-    private let queue = DispatchQueue(label: "NewMacBar.calendar", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "Panopticon.calendar", qos: .userInitiated)
     private lazy var store = EKEventStore() // Accessed only on the calendar queue.
     @Published var events: [AgendaEvent] = []
     @Published var upcoming: [AgendaEvent] = []
     @Published var calendarNames: [(id: String, name: String)] = []
     @Published var authorized = false
     @Published var loading = false
-    @Published var message = "Подключи календари macOS, чтобы видеть события здесь."
+    @Published var message = L("Подключи календари macOS, чтобы видеть события здесь.")
     var selectedIDs: [String] = []
     var enabled = false
     var onChange: (() -> Void)?
@@ -53,7 +53,7 @@ final class CalendarController: ObservableObject {
         queue.async { [weak self] in
             guard let self else { return }
             let completion: (Bool, Error?) -> Void = { [weak self] granted, error in
-                DispatchQueue.main.async { guard let self else { return }; self.loading = false; self.authorized = granted; self.message = error?.localizedDescription ?? (granted ? "Календари подключены" : "Доступ не предоставлен. Открой настройки доступа macOS."); self.refresh(force: true) }
+                DispatchQueue.main.async { guard let self else { return }; self.loading = false; self.authorized = granted; self.message = error?.localizedDescription ?? (granted ? L("Календари подключены") : L("Доступ не предоставлен. Открой настройки доступа macOS.")); self.refresh(force: true) }
             }
             if #available(macOS 14.0, *) { self.store.requestFullAccessToEvents(completion: completion) }
             else { self.store.requestAccess(to: .event, completion: completion) }
@@ -69,7 +69,7 @@ final class CalendarController: ObservableObject {
         else { authorized = status == .authorized }
         guard enabled && authorized else {
             events = []; upcoming = []; loading = false
-            if !authorized { calendarNames = []; if status == .denied || status == .restricted { message = "Доступ к событиям закрыт. Его можно изменить в настройках macOS." } }
+            if !authorized { calendarNames = []; if status == .denied || status == .restricted { message = L("Доступ к событиям закрыт. Его можно изменить в настройках macOS.") } }
             onChange?(); return
         }
         loading = true; let ids = selectedIDs; let month = displayedMonth
@@ -83,7 +83,7 @@ final class CalendarController: ObservableObject {
                 let predicate = self.store.predicateForEvents(withStart: start, end: end, calendars: chosen)
                 return self.store.events(matching: predicate).sorted { $0.startDate < $1.startDate }.prefix(1000).map { event in
                     let color = event.calendar.cgColor.flatMap(NSColor.init(cgColor:)) ?? .systemMint
-                    return AgendaEvent(id: (event.eventIdentifier ?? "event") + "-\(event.startDate.timeIntervalSince1970)", title: event.title ?? "Без названия", start: event.startDate, end: event.endDate, allDay: event.isAllDay, calendar: event.calendar.title, color: color)
+                    return AgendaEvent(id: (event.eventIdentifier ?? "event") + "-\(event.startDate.timeIntervalSince1970)", title: event.title ?? L("Без названия"), start: event.startDate, end: event.endDate, allDay: event.isAllDay, calendar: event.calendar.title, color: color)
                 }
             }
             let interval = Calendar.current.dateInterval(of: .month, for: month)!
@@ -93,7 +93,7 @@ final class CalendarController: ObservableObject {
             DispatchQueue.main.async {
                 guard self.generation == token, self.enabled else { return }
                 self.events = monthEvents; self.upcoming = next; self.calendarNames = names; self.loading = false
-                self.message = chosen.isEmpty ? "Выбери календари для показа." : (monthEvents.isEmpty ? "В этом месяце событий нет." : "События обновлены")
+                self.message = chosen.isEmpty ? L("Выбери календари для показа.") : (monthEvents.isEmpty ? L("В этом месяце событий нет.") : L("События обновлены"))
                 self.onChange?()
             }
         }

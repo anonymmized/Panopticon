@@ -1,0 +1,5 @@
+"CFBundleName" = "Panopticon";
+"CFBundleDisplayName" = "Panopticon";
+"NSAppleEventsUsageDescription" = "Panopticon displays the current track, controls Spotify and Apple Music, and empties the Trash through Finder only when you ask.";
+"NSCalendarsUsageDescription" = "Panopticon displays upcoming events in the calendar widget. Your data stays on your Mac.";
+"NSCalendarsFullAccessUsageDescription" = "Panopticon displays upcoming events in the calendar widget. Your data stays on your Mac; the app does not modify events.";

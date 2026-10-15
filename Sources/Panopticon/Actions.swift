@@ -34,13 +34,13 @@ struct ActionRouter {
         }
     }
     static func open(_ target: LaunchTarget?) {
-        guard let target else { showError("Приложение или ссылка недоступны. Проверь настройку в разделе «Связи и действия»."); return }
+        guard let target else { showError(L("Приложение или ссылка недоступны. Проверь настройку в разделе «Связи и действия».")); return }
         switch target {
         case .application(let url): NSWorkspace.shared.openApplication(at: url, configuration: .init()) { _, error in if let error { DispatchQueue.main.async { showError(error.localizedDescription) } } }
-        case .resource(let url): if !NSWorkspace.shared.open(url) { showError("Не удалось открыть \(url.lastPathComponent).") }
+        case .resource(let url): if !NSWorkspace.shared.open(url) { showError(L("Не удалось открыть \(url.lastPathComponent).")) }
         }
     }
-    static func showError(_ text: String) { let alert = NSAlert(); alert.messageText = "Не получилось открыть"; alert.informativeText = text; alert.runModal() }
+    static func showError(_ text: String) { let alert = NSAlert(); alert.messageText = L("Не получилось открыть"); alert.informativeText = text; alert.runModal() }
 }
 
 struct DockProfile: Identifiable, Codable, Equatable {
@@ -108,9 +108,9 @@ struct ProfileAppearance: Codable, Equatable {
 }
 
 extension BarModel {
-    var launcherShortcutLabel: String { ["controlOptionSpace": "⌃⌥ пробел", "commandShiftSpace": "⌘⇧ пробел", "optionShiftSpace": "⌥⇧ пробел"][launcherShortcutChoice] ?? "⌃⌥ пробел" }
+    var launcherShortcutLabel: String { ["controlOptionSpace": L("⌃⌥ пробел"), "commandShiftSpace": L("⌘⇧ пробел"), "optionShiftSpace": L("⌥⇧ пробел")][launcherShortcutChoice] ?? L("⌃⌥ пробел") }
     var calendarTarget: LaunchTarget? { ActionRouter.calendarTarget(kind: calendarDestination, appPath: calendarAppPath, webURL: calendarWebURL) }
-    var calendarAppName: String { calendarDestination == "web" ? URL(string: calendarWebURL)?.host ?? "Веб-календарь" : (calendarDestination == "app" ? FileManager.default.displayName(atPath: calendarAppPath).replacingOccurrences(of: ".app", with: "") : "Календарь macOS") }
+    var calendarAppName: String { calendarDestination == "web" ? URL(string: calendarWebURL)?.host ?? L("Веб-календарь") : (calendarDestination == "app" ? FileManager.default.displayName(atPath: calendarAppPath).replacingOccurrences(of: ".app", with: "") : L("Календарь macOS")) }
     var widgetKinds: [String] { var result: [String] = []; for kind in [widget, secondaryWidget] where kind != "none" && !result.contains(kind) { result.append(kind) }; return result }
     func openCalendar() { ActionRouter.open(calendarTarget) }
     @discardableResult func addQuickLink(name: String, kind: String, destination: String) -> Bool {

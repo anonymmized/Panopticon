@@ -84,7 +84,7 @@ func runRegressionTests(defaults: UserDefaults, model: BarModel) throws {
 
 func runPanelSelfTests() {
     _ = NSApplication.shared
-    let suite = "app.newmacbar.paneltest.\(UUID().uuidString)"
+    let suite = "app.panopticon.paneltest.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
     defaults.set(["/System/Library/CoreServices/Finder.app"], forKey: "pinned")
@@ -116,7 +116,7 @@ func runPanelSelfTests() {
     let event = NSEvent.mouseEvent(with: .rightMouseDown, location: inside, modifierFlags: [],
                                   timestamp: 0, windowNumber: panel.windowNumber, context: nil,
                                   eventNumber: 1, clickCount: 1, pressure: 1)!
-    precondition(bar.menu(for: event)?.items.contains { $0.title == "Настройки NewMacBar…" } == true,
+    precondition(bar.menu(for: event)?.items.contains { $0.title == L("Настройки Panopticon…") } == true,
                  "Native right-click menu")
     for edge in DockEdge.allCases {
         model.edge = edge.rawValue; model.showSpaces = true; model.showTrash = true
@@ -133,5 +133,12 @@ func runPanelSelfTests() {
         }
     }
     runDragDropTests(bar: bar, model: model, panel: panel)
+    for (language, settingsTitle, trashTitle) in [(AppLanguage.english, "Panopticon settings…", "Trash"), (.russian, "Настройки Panopticon…", "Корзина")] {
+        Localization.shared.withTemporaryLanguage(language) {
+            bar.refresh()
+            precondition(bar.menu(for: event)?.items.contains { $0.title == settingsTitle } == true, "Localized native context menu")
+            precondition((bar.accessibilityChildren() as? [BarAccessibilityButton])?.contains { $0.accessibilityLabel() == trashTitle } == true, "Localized accessibility labels")
+        }
+    }
     print("PASS: panel passthrough, re-entry, first click, glass hit-test, focus and native menu")
 }

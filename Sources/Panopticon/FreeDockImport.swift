@@ -31,12 +31,12 @@ struct FreeDockImport: Decodable {
     func convertedSpaces() -> [BarSpace] {
         spaces.map { source in
             var result = BarSpace(name: SettingsRules.label(source.name), symbol: source.symbol ?? "house")
-            if result.name.isEmpty { result.name = "Пространство FreeDock" }
+            if result.name.isEmpty { result.name = L("Пространство FreeDock") }
             result.desktop = source.desktop.flatMap { (1...30).contains($0) ? $0 : nil }
             var paths = Set<String>()
             for item in source.items where paths.insert(item.path).inserted {
                 if let url = URL(string: item.path), ["https", "http"].contains(url.scheme?.lowercased() ?? ""), url.host != nil {
-                    result.links.append(QuickLink(name: url.host ?? "Сайт", kind: "web", destination: item.path))
+                    result.links.append(QuickLink(name: url.host ?? L("Сайт"), kind: "web", destination: item.path))
                 } else if item.path.hasPrefix("/") {
                     let url = URL(fileURLWithPath: item.path).standardizedFileURL
                     if url.pathExtension.lowercased() == "app" { result.paths.append(url.path) }
@@ -53,9 +53,9 @@ struct FreeDockImport: Decodable {
         case tooLarge, invalidSpaces, capacity
         var errorDescription: String? {
             switch self {
-            case .tooLarge: return "Размер файла должен быть меньше 5 МБ."
-            case .invalidSpaces: return "В файле должен быть список из 1–30 пространств, до 500 элементов в каждом."
-            case .capacity: return "На панели может быть не более 30 пространств. Удали лишние перед импортом."
+            case .tooLarge: return L("Размер файла должен быть меньше 5 МБ.")
+            case .invalidSpaces: return L("В файле должен быть список из 1–30 пространств, до 500 элементов в каждом.")
+            case .capacity: return L("На панели может быть не более 30 пространств. Удали лишние перед импортом.")
             }
         }
     }

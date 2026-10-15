@@ -10,22 +10,24 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
+      - name: Check localization catalogs
+        run: python3 scripts/check_localizations.py
       - name: Release build
         run: swift build -c release
       - name: Regression tests
         run: |
-          .build/release/NewMacBar --self-test
-          .build/release/NewMacBar --panel-self-test
+          .build/release/Panopticon --self-test
+          .build/release/Panopticon --panel-self-test
       - name: Package and verify app
         run: ./build.sh
       - name: Package DMG
         run: ./scripts/make_dmg.sh --skip-build
       - name: Archive app
-        run: ditto -c -k --keepParent build/NewMacBar.app build/NewMacBar.zip
+        run: ditto -c -k --keepParent build/Panopticon.app build/Panopticon.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: NewMacBar
+          name: Panopticon
           path: |
-            build/NewMacBar.zip
+            build/Panopticon.zip
             build/*.dmg
             build/*.sha256

@@ -18,6 +18,7 @@ struct StudioBackground: View {
 }
 
 struct MiniWidget: View {
+    @ObservedObject private var localization = Localization.shared
     var kind: String
     var compact = false
     var accent: Color = .purple
@@ -33,25 +34,26 @@ struct MiniWidget: View {
                 }
             } else if kind == "calendar" {
                 VStack(spacing: 1) { Text(Date().formatted(.dateTime.month(.abbreviated)).uppercased()).font(.system(size: 6, weight: .bold)).foregroundStyle(.white.opacity(0.65)); Text(Date().formatted(.dateTime.day())).font(.system(size: 20, weight: .semibold)) }.frame(width: 28)
-                if !compact { VStack(alignment: .leading, spacing: 4) { Text("Твой календарь").font(.system(size: 9, weight: .semibold)); Text("Встречи и планы").font(.system(size: 7)).opacity(0.6) }.frame(width: 95, alignment: .leading) }
+                if !compact { VStack(alignment: .leading, spacing: 4) { Text(L("Твой календарь")).font(.system(size: 9, weight: .semibold)); Text(L("Встречи и планы")).font(.system(size: 7)).opacity(0.6) }.frame(width: 95, alignment: .leading) }
             } else if kind == "timer" {
                 Image(systemName: "timer").font(.system(size: 16))
-                if !compact { VStack(alignment: .leading, spacing: 1) { Text("25:00").font(.system(size: 18, weight: .semibold, design: .monospaced)); Text("Время для фокуса").font(.system(size: 7)).opacity(0.6) }.frame(width: 93, alignment: .leading) }
+                if !compact { VStack(alignment: .leading, spacing: 1) { Text("25:00").font(.system(size: 18, weight: .semibold, design: .monospaced)); Text(L("Время для фокуса")).font(.system(size: 7)).opacity(0.6) }.frame(width: 93, alignment: .leading) }
             } else {
                 if compact { let parts = (clockText ?? "22:30").split(separator: ":"); VStack(spacing: 0) { Text(parts.first.map(String.init) ?? "22").font(.system(size: 14, weight: .semibold, design: .monospaced)); Text(parts.dropFirst().first.map(String.init) ?? "30").font(.system(size: 11, weight: .medium, design: .monospaced)).opacity(0.65) }.frame(width: 23, height: 27) }
-                else { VStack(alignment: .leading, spacing: 1) { Text(clockText ?? "22:30").font(.system(size: 18, weight: .semibold, design: .monospaced)); Text(dateText ?? "Вторник, 13 октября").font(.system(size: 7)).opacity(0.6) }.frame(width: 127, alignment: .leading) }
+                else { VStack(alignment: .leading, spacing: 1) { Text(clockText ?? "22:30").font(.system(size: 18, weight: .semibold, design: .monospaced)); Text(dateText ?? L("Вторник, 13 октября")).font(.system(size: 7)).opacity(0.6) }.frame(width: 127, alignment: .leading) }
             }
         }.padding(compact ? 9 : 7).foregroundStyle(.white).background(accent.opacity(opacity), in: RoundedRectangle(cornerRadius: 11))
     }
 }
 
 struct DockPreview: View {
+    @ObservedObject private var localization = Localization.shared
     @ObservedObject var model: BarModel
     var body: some View {
         ZStack(alignment: .topLeading) {
             StudioBackground()
             VStack(alignment: .leading, spacing: 0) {
-                HStack { Circle().fill(.mint).frame(width: 5, height: 5); Text("ЖИВОЙ ПРЕДПРОСМОТР").font(.system(size: 8, weight: .semibold)).tracking(1.7); Spacer(); Text("\(Int(model.iconSize)) px").font(.system(size: 9, design: .monospaced)).opacity(0.5) }.foregroundStyle(.white.opacity(0.7))
+                HStack { Circle().fill(.mint).frame(width: 5, height: 5); Text(L("ЖИВОЙ ПРЕДПРОСМОТР")).font(.system(size: 8, weight: .semibold)).tracking(1.7); Spacer(); Text("\(Int(model.iconSize)) px").font(.system(size: 9, design: .monospaced)).opacity(0.5) }.foregroundStyle(.white.opacity(0.7))
                 Spacer()
                 HStack(spacing: CGFloat(model.iconSpacing) * 0.6) {
                     ForEach(Array(model.pinned.prefix(model.widgetKinds.count > 1 ? 5 : 7))) { item in VStack(spacing: 4) { Image(nsImage: item.icon).resizable().frame(width: min(model.iconSize, 42), height: min(model.iconSize, 42)); Capsule().fill(.white.opacity(0.8)).frame(width: model.indicatorStyle == "dash" ? 7 : 3, height: model.indicatorStyle == "none" ? 0 : 2) } }
@@ -68,8 +70,9 @@ struct DockPreview: View {
         }.frame(height: 150).clipShape(RoundedRectangle(cornerRadius: 16))
     }
     private func formatted(_ date: Date, time: Bool) -> String {
-        let formatter = DateFormatter(); formatter.locale = Locale(identifier: "ru_RU")
+        let formatter = DateFormatter(); formatter.locale = Localization.shared.locale
         formatter.dateFormat = time ? (model.clockFormat == "12h" ? "h:mm" : "HH:mm") + (model.clockSeconds ? ":ss" : "") + (model.clockFormat == "12h" ? " a" : "") : "EEEE, d MMM"
+        if !time { formatter.setLocalizedDateFormatFromTemplate("EEEEdMMM") }
         return formatter.string(from: date).capitalized
     }
 

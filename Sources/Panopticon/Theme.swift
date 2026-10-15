@@ -8,9 +8,9 @@ enum DockTheme: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .glass: return "Стекло"
-        case .dark: return "Тёмная"
-        case .light: return "Светлая"
+        case .glass: return L("Стекло")
+        case .dark: return L("Тёмная")
+        case .light: return L("Светлая")
         case .aurora: return "Aurora"
         case .electric: return "Electric"
         case .sunset: return "Sunset"

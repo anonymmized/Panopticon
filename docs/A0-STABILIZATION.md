@@ -7,7 +7,7 @@
 ## Область проверки
 
 По указанию владельца A0 из `AGENTS_PLAN.md` применяется к текущей версии
-NewMacBar в `fashion_hab`. Внешний план описывает другую структуру FreeDock.
+Panopticon в `fashion_hab`. Внешний план описывает другую структуру FreeDock.
 Переименование приложения и реализация отсутствующих функций не входят в A0.
 Пуши, PR, изменение настроек репозитория на GitHub и слияние не выполнялись.
 
@@ -39,10 +39,10 @@ NewMacBar в `fashion_hab`. Внешний план описывает друг�
 ```sh
 set -o pipefail
 swift build -c release 2>&1 | tee build.log
-.build/release/NewMacBar --self-test
-.build/release/NewMacBar --panel-self-test
+.build/release/Panopticon --self-test
+.build/release/Panopticon --panel-self-test
 ./build.sh install
-codesign --verify --deep --strict /Applications/NewMacBar.app
+codesign --verify --deep --strict /Applications/Panopticon.app
 zsh -n build.sh scripts/build_app.sh
 git diff --check
 ```
