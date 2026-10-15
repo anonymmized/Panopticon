@@ -11,7 +11,7 @@ No public release or GitHub upload is performed by the local checks.
 |---|---|
 | Source | Release build and isolated model/panel tests |
 | Languages | Matching catalogs, placeholders, plural forms and English-only primary documentation |
-| Persistence | Offline pins survive profile application and restart; spaces and profile round trips |
+| Persistence | Offline pins survive profile application, undo and restart; spaces and profile round trips |
 | Background work | Cancelled folder reads cannot publish; timer inputs and restored durations are bounded |
 | Interaction | Four edges, overflow, click-through margins, native menus, hover springs and quiet reveal policy |
 | Packaging | Complete resources, stable identity, universal architectures, strict signature and image hashes |
@@ -39,7 +39,7 @@ A command succeeding is not a substitute for the separate user-driven checks bel
 
 ## Candidate changes
 
-- Preserves pinned apps from temporarily disconnected volumes when applying profiles.
+- Preserves pinned apps from temporarily disconnected volumes when applying profiles or undoing removal.
 - Propagates cancellation to folder workers and releases the loading indicator.
 - Bounds restored focus sessions and rejects non-finite duration input.
 - Distinguishes a fresh focus session from a paused session in labels and actions.

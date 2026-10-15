@@ -146,5 +146,6 @@ func runPanelSelfTests() {
     }
     runDragDropTests(bar: bar, model: model, panel: panel)
     runWindowControllerTests()
+    runSettingsLayoutTests()
     print("PASS: panel passthrough, re-entry, first click, glass hit-test, focus and native menu")
 }

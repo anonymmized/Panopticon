@@ -31,7 +31,7 @@ extension SettingsView {
             card(L("Положение и видимость")) {
                 Picker(L("Край экрана"), selection: $model.edge) {
                     ForEach(DockEdge.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) }
-                }.font(.system(size: 11))
+                }.id(localization.code).font(.system(size: 11))
                 row(L("Показывать панель"), L("Также переключается сочетанием ⌃⌥D"), $model.barVisible)
                 row(
                     L("Следовать за курсором"), L("Перемещать панель на экран, где находится курсор"),

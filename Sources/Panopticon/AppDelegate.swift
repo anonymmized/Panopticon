@@ -597,10 +597,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             window.title = "Panopticon"
             window.titlebarAppearsTransparent = true
             window.backgroundColor = .windowBackgroundColor
-            window.contentView = NSHostingView(
+            let host = NSHostingView(
                 rootView: SettingsView(
                     model: model, dock: dock, focus: focus, catalog: catalog, agenda: agenda))
-            window.minSize = NSSize(width: 760, height: 540)
+            host.sizingOptions = []
+            window.contentView = host
+            window.contentMinSize = NSSize(width: 760, height: 540)
             window.setFrameAutosaveName("Panopticon.Settings")
             window.isReleasedWhenClosed = false
             window.delegate = self

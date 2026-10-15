@@ -86,74 +86,79 @@ struct SettingsView: View {
     var collection: AppCollection? { model.collections.first { $0.id == selectedCollection } }
     var current: SettingsSection { SettingsSection.all.first { $0.id == section } ?? SettingsSection.all[0] }
     var body: some View {
+        // Bound both native columns to the window; intrinsic page height must scroll inside it.
         NavigationSplitView {
-            VStack(spacing: 0) {
-                HStack(spacing: 10) {
-                    Image(systemName: "dock.rectangle").font(.system(size: 25)).foregroundStyle(Studio.accent)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Panopticon").font(.headline)
-                        Text(L("Твоё пространство")).font(Studio.caption).foregroundStyle(.secondary)
+            GeometryReader { geometry in
+                VStack(spacing: 0) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "dock.rectangle").font(.system(size: 25)).foregroundStyle(Studio.accent)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Panopticon").font(.headline)
+                            Text(L("Твоё пространство")).font(Studio.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                    }.padding(18)
+                    TextField(L("Найти настройку"), text: $navigationQuery).textFieldStyle(.roundedBorder).padding(
+                        .horizontal, 12
+                    ).padding(.bottom, 10).accessibilityLabel(L("Поиск раздела настроек"))
+                    List(selection: $ui.section) {
+                        ForEach(
+                            SettingsSection.all.filter { SettingsSection.matches($0, query: navigationQuery) }
+                        ) { item in
+                            Label(item.id == "system" ? L("Система") : item.title, systemImage: item.symbol).font(Studio.body).padding(.vertical, 4)
+                                .tag(item.id)
+                        }
+                    }.listStyle(.sidebar).frame(minHeight: 80, maxHeight: .infinity).layoutPriority(-1)
+                    if !navigationQuery.isEmpty
+                        && !SettingsSection.all.contains(where: {
+                            SettingsSection.matches($0, query: navigationQuery)
+                        })
+                    {
+                        Text(L("Раздел не найден")).font(Studio.caption).foregroundStyle(.secondary).padding()
                     }
-                    Spacer()
-                }.padding(18)
-                TextField(L("Найти настройку"), text: $navigationQuery).textFieldStyle(.roundedBorder).padding(
-                    .horizontal, 12
-                ).padding(.bottom, 10).accessibilityLabel(L("Поиск раздела настроек"))
-                List(selection: $ui.section) {
-                    ForEach(
-                        SettingsSection.all.filter { SettingsSection.matches($0, query: navigationQuery) }
-                    ) { item in
-                        Label(item.id == "system" ? L("Система") : item.title, systemImage: item.symbol).font(Studio.body).padding(.vertical, 4)
-                            .tag(item.id)
-                    }
-                }.listStyle(.sidebar)
-                if !navigationQuery.isEmpty
-                    && !SettingsSection.all.contains(where: {
-                        SettingsSection.matches($0, query: navigationQuery)
-                    })
-                {
-                    Text(L("Раздел не найден")).font(Studio.caption).foregroundStyle(.secondary).padding()
-                }
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(L("Язык интерфейса")).font(Studio.caption).foregroundStyle(.secondary)
-                    Picker(L("Язык интерфейса"), selection: Binding(get: { localization.language }, set: { localization.setLanguage($0) })) {
-                        ForEach(AppLanguage.allCases) { Text($0.title).tag($0) }
-                    }.labelsHidden().accessibilityLabel(L("Язык интерфейса"))
-                }.padding(.horizontal, 16).padding(.top, 10)
-                Text(model.replaceDock ? L("Замена Dock включена") : L("Работает рядом с Dock")).font(
-                    Studio.caption
-                ).foregroundStyle(.secondary).padding(16)
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(L("Язык интерфейса")).font(Studio.caption).foregroundStyle(.secondary)
+                        Picker(L("Язык интерфейса"), selection: Binding(get: { localization.language }, set: { localization.setLanguage($0) })) {
+                            ForEach(AppLanguage.allCases) { Text($0.title).tag($0) }
+                        }.id(localization.code).labelsHidden().accessibilityLabel(L("Язык интерфейса"))
+                    }.padding(.horizontal, 16).padding(.top, 10)
+                    Text(model.replaceDock ? L("Замена Dock включена") : L("Работает рядом с Dock")).font(
+                        Studio.caption
+                    ).foregroundStyle(.secondary).padding(16)
+                }.frame(width: geometry.size.width, height: geometry.size.height)
             }.navigationSplitViewColumnWidth(min: 190, ideal: 215, max: 260)
         } detail: {
-            VStack(spacing: 0) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(current.title).font(Studio.title)
-                        Text(current.detail).font(Studio.body).foregroundStyle(.secondary).fixedSize(
-                            horizontal: false, vertical: true)
-                    }
-                    Spacer(minLength: 12)
-                }.padding(24)
-                Divider()
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 22) {
-                        if dock.recoveryPending { recoveryCard }
-                        if ["appearance", "widgets", "behavior"].contains(section) {
-                            DockPreview(model: model).accessibilityLabel(
-                                L("Предпросмотр панели. Изменения применяются сразу."))
+            GeometryReader { geometry in
+                VStack(spacing: 0) {
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(current.title).font(Studio.title)
+                            Text(current.detail).font(Studio.body).foregroundStyle(.secondary).fixedSize(
+                                horizontal: false, vertical: true)
                         }
-                        page
-                        if !message.isEmpty {
-                            Label(localization.status(message), systemImage: "info.circle").font(Studio.caption).foregroundStyle(
-                                .secondary
-                            ).textSelection(.enabled)
-                        }
-                    }.frame(maxWidth: 900, alignment: .leading).frame(maxWidth: .infinity).padding(24)
-                }.id(section)
-            }.background(Studio.canvas)
+                        Spacer(minLength: 12)
+                    }.padding(24)
+                    Divider()
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 22) {
+                            if dock.recoveryPending { recoveryCard }
+                            if ["appearance", "widgets", "behavior"].contains(section) {
+                                DockPreview(model: model).accessibilityLabel(
+                                    L("Предпросмотр панели. Изменения применяются сразу."))
+                            }
+                            page
+                            if !message.isEmpty {
+                                Label(localization.status(message), systemImage: "info.circle").font(Studio.caption).foregroundStyle(
+                                    .secondary
+                                ).textSelection(.enabled)
+                            }
+                        }.frame(maxWidth: 900, alignment: .leading).frame(maxWidth: .infinity).padding(24)
+                    }.id(section).frame(minHeight: 0, maxHeight: .infinity)
+                }.frame(width: geometry.size.width, height: geometry.size.height).background(Studio.canvas)
+            }
         }
-        .environment(\.locale, localization.locale).frame(minWidth: 760, minHeight: 540).preferredColorScheme(ui.colorScheme).tint(Studio.accent)
+        .environment(\.locale, localization.locale).frame(maxWidth: .infinity, maxHeight: .infinity).preferredColorScheme(ui.colorScheme).tint(Studio.accent)
         .onAppear {
             if !SettingsSection.all.contains(where: { $0.id == section }) { section = "appearance" }
             if section == "apps" { loadLibrary() }
