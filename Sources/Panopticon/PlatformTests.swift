@@ -225,6 +225,14 @@ func runInteractionTests() {
     precondition(
         SettingsSection.all.contains { SettingsSection.matches($0, query: L("размер иконки")) },
         "Settings search finds a control")
+    let offlinePin = DockItem(url: URL(fileURLWithPath: "/Volumes/Disconnected/Example.app"))
+    model.batch { model.pinned.insert(offlinePin, at: 0) }
+    bar.removeAppWithUndo(offlinePin)
+    precondition(!model.pinned.contains(offlinePin), "Remove an offline shortcut")
+    bar.undoRemoval?()
+    bar.undoRemoval?()
+    precondition(model.pinned.first == offlinePin && model.pinned.filter { $0.id == offlinePin.id }.count == 1,
+        "Undo restores offline pins in order without creating duplicates")
     runFolderPresentationTests()
     print(
         "PASS: readable four-edge overflow, hidden item access, link/collection transfer, stale payloads, diagnostics privacy, stable selection"
