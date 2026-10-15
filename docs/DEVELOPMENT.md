@@ -63,3 +63,12 @@ and the mounted image. See [Distribution](DISTRIBUTION.md) for universal builds.
 Never commit build products, caches, installers, signing credentials or personal
 profile exports. Do not push, publish or upload for notarization without an explicit
 owner instruction. Local packaging performs no publication.
+
+## Documentation images
+
+Run `.build/release/Panopticon --render-docs` on macOS to regenerate the six English
+and Russian images in `docs/assets`. It renders real panel and settings components
+with disposable demonstration preferences. Review every image before committing;
+no personal events, file names, accounts or externally downloaded assets belong there.
+GitHub README typography uses native Markdown; the hero image carries the custom
+wordmark, system-font typography and gradient treatment.

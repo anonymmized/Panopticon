@@ -460,6 +460,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     func languageChanged() {
         rebuildApplicationMenu(); rebuildStatusMenu()
+        onboardingWindow?.title = L("Добро пожаловать в Panopticon")
         dock.relocalizeStatus(); agenda.message = Localization.shared.status(agenda.message)
         music.relocalizeStatus(); bar.refresh()
     }

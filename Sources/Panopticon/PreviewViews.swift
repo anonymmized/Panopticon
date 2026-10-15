@@ -39,6 +39,13 @@ struct MiniWidget: View {
     var opacity = 0.38
     var clockText: String?
     var dateText: String?
+    private var currentTime: String {
+        let f = DateFormatter(); f.locale = localization.locale; f.dateFormat = "HH:mm"
+        return f.string(from: Date())
+    }
+    private var currentDate: String {
+        Date().formatted(.dateTime.weekday(.wide).month(.wide).day().locale(localization.locale)).capitalized
+    }
     var body: some View {
         HStack(spacing: 9) {
             if kind == "music" {
@@ -46,15 +53,15 @@ struct MiniWidget: View {
                     .background(.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 7))
                 if !compact {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(L("Название трека")).font(.system(size: 10, weight: .bold))
-                        HStack {
-                            Text(L("Исполнитель")).font(.system(size: 10)).opacity(0.6)
-                            Spacer(minLength: 10)
+                        Text(L("Название трека")).font(.system(size: 10, weight: .bold)).lineLimit(1)
+                        HStack(spacing: 6) {
+                            Text(L("Исполнитель")).font(.system(size: 10)).opacity(0.6).lineLimit(1)
+                            Spacer(minLength: 4)
                             Image(systemName: "backward.fill")
                             Image(systemName: "pause.fill")
                             Image(systemName: "forward.fill")
                         }.font(.system(size: 10))
-                    }.frame(width: 91)
+                    }.frame(width: 135, alignment: .leading)
                 }
             } else if kind == "calendar" {
                 VStack(spacing: 1) {
@@ -65,8 +72,8 @@ struct MiniWidget: View {
                 }.frame(width: 28)
                 if !compact {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(L("Твой календарь")).font(.system(size: 10, weight: .semibold))
-                        Text(L("Встречи и планы")).font(.system(size: 10)).opacity(0.6)
+                        Text(L("Твой календарь")).font(.system(size: 10, weight: .semibold)).lineLimit(1)
+                        Text(L("Встречи и планы")).font(.system(size: 10)).opacity(0.6).lineLimit(1)
                     }.frame(width: 95, alignment: .leading)
                 }
             } else if kind == "timer" {
@@ -79,7 +86,7 @@ struct MiniWidget: View {
                 }
             } else {
                 if compact {
-                    let parts = (clockText ?? "22:30").split(separator: ":")
+                    let parts = (clockText ?? currentTime).split(separator: ":")
                     VStack(spacing: 0) {
                         Text(parts.first.map(String.init) ?? "22").font(
                             .system(size: 14, weight: .semibold, design: .monospaced))
@@ -89,9 +96,9 @@ struct MiniWidget: View {
                     }.frame(width: 23, height: 27)
                 } else {
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(clockText ?? "22:30").font(
+                        Text(clockText ?? currentTime).font(
                             .system(size: 18, weight: .semibold, design: .monospaced))
-                        Text(dateText ?? L("Вторник, 13 октября")).font(.system(size: 10)).opacity(0.6)
+                        Text(dateText ?? currentDate).font(.system(size: 10)).opacity(0.6).lineLimit(1)
                     }.frame(width: 127, alignment: .leading)
                 }
             }

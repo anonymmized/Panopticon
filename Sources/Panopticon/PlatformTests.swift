@@ -255,7 +255,11 @@ func runFolderPresentationTests() {
         try FileManager.default.createDirectory(at: empty, withIntermediateDirectories: false)
         loader.load(empty); awaitLoad()
         precondition(loader.entries.isEmpty && loader.error.isEmpty && !loader.limited, "Empty folder differs from unavailable folder")
+        loader.load(directory)
         loader.cancel()
+        precondition(!loader.loading, "Cancellation immediately releases the folder loading state")
+        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        precondition(loader.entries.isEmpty && !loader.loading, "A cancelled read cannot publish late contents")
         print("PASS: asynchronous folder limit, refresh, obsolete request rejection, missing and empty states")
     } catch { preconditionFailure("Disposable folder presentation test failed: \(error)") }
 }

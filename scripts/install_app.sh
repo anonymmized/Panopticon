@@ -6,6 +6,7 @@ task_source="$PWD/build/Panopticon.app"
 task_destination="${INSTALL_DIR:-/Applications}"
 [[ -d "$task_source" ]] || { printf 'Build the app first with ./build.sh\n' >&2; exit 1; }
 codesign --verify --deep --strict "$task_source"
+python3 scripts/check_bundle.py "$task_source"
 mkdir -p "$task_destination"
 task_destination="${task_destination:A}"
 [[ "$task_destination/Panopticon.app" != "$task_source" ]] || { printf 'Source and destination must differ\n' >&2; exit 2; }
@@ -20,11 +21,16 @@ task_moved_old=false
 task_moved_legacy=false
 task_installed=false
 cleanup() {
+    local task_restore_ok=true
     if [[ "$task_installed" == false && "$task_moved_old" == true && ! -e "$task_destination/Panopticon.app" ]]; then
-        mv "$task_stage/previous.app" "$task_destination/Panopticon.app"
+        mv "$task_stage/previous.app" "$task_destination/Panopticon.app" || task_restore_ok=false
     fi
     if [[ "$task_installed" == false && "$task_moved_legacy" == true ]]; then
-        mv "$task_stage/legacy.app" "$task_destination/NewMacBar.app"
+        mv "$task_stage/legacy.app" "$task_destination/NewMacBar.app" || task_restore_ok=false
+    fi
+    if [[ "$task_restore_ok" == false ]]; then
+        printf 'Automatic rollback could not finish. Original bundles are preserved in: %s\n' "$task_stage" >&2
+        return
     fi
     rm -rf "$task_stage"
 }

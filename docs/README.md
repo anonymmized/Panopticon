@@ -14,3 +14,5 @@
 | Verified behavior and remaining limits | [Validation](VALIDATION.md) |
 
 These documents describe the current application. Implementation history is kept in Git.
+
+- [Release readiness](RELEASE.md)

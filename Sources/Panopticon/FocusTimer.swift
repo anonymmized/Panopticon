@@ -12,9 +12,10 @@ final class FocusTimer: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         if let saved = defaults.dictionary(forKey: "focusSession") {
-            remaining = SettingsRules.number(saved["remaining"] as? Double ?? 1500, 0...5400, fallback: 1500)
             sessionDuration = SettingsRules.number(
                 saved["duration"] as? Double ?? 1500, 1...5400, fallback: 1500)
+            remaining = SettingsRules.number(saved["remaining"] as? Double ?? sessionDuration,
+                0...sessionDuration, fallback: sessionDuration)
             if let end = saved["end"] as? Date {
                 remaining = SettingsRules.number(end.timeIntervalSinceNow, 0...sessionDuration, fallback: 0)
                 endDate = Date().addingTimeInterval(remaining)
@@ -42,7 +43,7 @@ final class FocusTimer: ObservableObject {
             timer = nil
         } else {
             if remaining <= 0 {
-                remaining = minutes * 60
+                remaining = Self.duration(minutes)
                 sessionDuration = remaining
             }
             endDate = Date().addingTimeInterval(remaining)
@@ -78,13 +79,17 @@ final class FocusTimer: ObservableObject {
         timer?.invalidate()
         timer = nil
         endDate = nil
-        remaining = minutes * 60
+        remaining = Self.duration(minutes)
         sessionDuration = remaining
         isRunning = false
         persist()
         onChange?()
     }
     var progress: Double { min(1, max(0, 1 - remaining / max(sessionDuration, 1))) }
+    var hasStarted: Bool { isRunning || remaining < sessionDuration }
+    private static func duration(_ minutes: Double) -> Double {
+        SettingsRules.number(minutes, 5...90, fallback: 25) * 60
+    }
     var text: String {
         let seconds = max(0, Int(ceil(remaining)))
         return String(format: "%02d:%02d", seconds / 60, seconds % 60)

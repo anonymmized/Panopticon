@@ -28,8 +28,9 @@ fi
 cp Sources/Panopticon/Resources/*.json "$task_app/Contents/Resources/"
 cp -R resources/en.lproj resources/ru.lproj "$task_app/Contents/Resources/"
 cp resources/Info.plist "$task_app/Contents/Info.plist"
-cp resources/AppIcon.icns "$task_app/Contents/resources/"
+cp resources/AppIcon.icns "$task_app/Contents/Resources/"
 plutil -lint "$task_app/Contents/Info.plist" resources/Panopticon.entitlements
+python3 scripts/check_bundle.py "$task_app" --current-source
 # The bundle's plist is the single version source for app, installer and manifest.
 task_identity="${SIGN_IDENTITY:--}"
 task_signing=adhoc

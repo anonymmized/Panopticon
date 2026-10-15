@@ -1,95 +1,134 @@
-# Panopticon
+<div align="center">
 
-[English](README.md) | [Russian](README.ru.md)
+![Panopticon — your own space on Mac](docs/assets/hero-en.png)
 
-A free, local-first app panel for macOS 13 and later. Pin apps, organize spaces,
-add useful widgets and choose a look that fits your desktop. Built with Swift,
-AppKit and SwiftUI, without subscriptions, telemetry or third-party libraries.
+# Your desktop. Your rhythm.
 
-## Everyday use
+A native app panel for the things you open, the spaces you work in, and the moments in between.
 
-- Pinned apps stay on the panel after quitting. Right-click a running app and choose
-  **Keep in Dock**, or use **Add from macOS Dock** in Settings.
-- Spaces hold independent apps, collections, folders and website shortcuts.
-- The panel supports all four screen edges, multiple displays, auto-hide,
-  hover magnification and launch feedback.
-- Clock, calendar, music and focus widgets offer compact or detailed layouts.
-- Choose the app or website to open from the calendar widget. Calendar events
-  come separately from accounts connected to macOS.
-- Search finds apps, spaces, shortcuts, profiles and actions.
-- Settings and popovers support system, light and dark appearances. Choose English,
-  Russian or the system language without restarting.
+**macOS 13+** · **Apple Silicon & Intel** · **Swift + AppKit** · **MIT**
 
-## Build and install
+[English](README.md) · [Russian](README.ru.md) · [User guide](docs/USAGE.md) · [Release readiness](docs/RELEASE.md)
 
-Requires macOS 13+ and Xcode or Command Line Tools with Swift 5.9+.
+</div>
+
+---
+
+## A quieter way to work
+
+Panopticon keeps apps, folders and useful widgets within reach. A smooth magnification
+wave follows the pointer; auto-hide gives the desktop back when you move away.
+No subscription, required account, telemetry or third-party libraries.
+
+| Make room | Keep your flow | Make it yours |
+|:---|:---|:---|
+| Independent spaces for work and personal layouts | Pin once; apps stay after you quit them | Eight glass themes, four edges and two widget slots |
+| Collections, folders, files and website shortcuts | Search with keyboard navigation and layout correction | Icon size, spacing, lift, glow and magnification |
+| Optional system Dock replacement with recovery | A focus session that survives restarts | English, Russian, light, dark or system appearance |
+
+## Start here
+
+**Version 1.0 is in local release-candidate review.** A public DMG has not been
+published yet. See [release readiness](docs/RELEASE.md) for the exact checks and limits.
+
+To build and install on your Mac, use Xcode or Command Line Tools with Swift 5.9+:
 
 ```sh
-swift build -c release
 ./build.sh
 open build/Panopticon.app
 ```
 
-Quit the installed app before updating:
+On first launch, choose a screen edge, import your macOS Dock apps and select widgets.
+Calendar, player control and Accessibility connections are optional.
+
+1. **Bring your apps.** Settings → Apps → Add from macOS Dock. Importing adds missing
+   apps while preserving your current order. Quitting a pinned app keeps its icon.
+2. **Choose your space.** Give work, study or personal time its own layout. Drag items
+   onto a space symbol to move them; originals remain on disk.
+3. **Find your look.** Adjust Appearance, then pick up to two widgets. Full animations
+   enables hover magnification and launch bounce. Follow macOS respects Reduce Motion.
+
+## A panel that feels at home
+
+![Appearance controls and native panel preview](docs/assets/appearance-en.png)
+
+Fine-tune size, spacing, transparency and motion without restarting. Semantic surfaces
+keep labels readable; Reduce Transparency and Increase Contrast have dedicated fallbacks.
+The panel leaves keyboard focus with your current app, and transparent margins pass clicks through.
+
+## Small tools, useful every day
+
+![Focus timer and calendar, music and clock widget examples](docs/assets/widgets-en.png)
+
+- **Focus:** start, pause, resume and reset. Changing the next duration preserves a paused session.
+- **Calendar:** browse the month and choose any calendar app or website to open.
+  Event access comes separately from calendars connected to macOS.
+- **Music:** Spotify and Apple Music, with track information and playback controls.
+  Connect control explicitly; browser playback is not supported.
+- **Clock:** compact or detailed, 12 or 24 hours, with optional seconds.
+
+Images are rendered from the actual app components using disposable demonstration data.
+They contain no personal calendar events, document names or accounts.
+
+## Keyboard first, when you want it
+
+| Shortcut | Action |
+|:---|:---|
+| `Control` + `Option` + `Space` | Open search; configurable |
+| `Control` + `Option` + `1…9` | Select a space |
+| `Control` + `Option` + `← / →` | Previous / next space |
+| `Control` + `Option` + `D` | Show / hide the panel |
+| `Escape` | Close search |
+
+## One Dock, with a way back
+
+Enable **Replace system Dock** in Settings → Behavior & displays. Panopticon saves
+and restores the original visibility settings. The native pinned app list is retained.
+**Restore system Dock** remains available in Settings and the menu bar; normal exit
+restores it too. Crash recovery keeps the backup until restoration succeeds.
+
+**Mission Control uses the macOS Dock.** Panopticon hides during overview to avoid
+overlap. A complete replacement inside Mission Control is not implemented.
+
+Auto-hide responds to a brief hover at the chosen edge. Ordinary clicks, opening
+Settings and background updates do not summon a hidden panel.
+
+## Build, verify, update
 
 ```sh
-./build.sh install
-open /Applications/Panopticon.app
-```
-
-The installer verifies the signature and keeps a ZIP backup before replacing an
-installed app. Preferences and permissions keep their existing application identity.
-For another destination, set `INSTALL_DIR="$HOME/Applications"`.
-
-Build a universal app and a local disk image:
-
-```sh
+./scripts/check_release.sh
 ARCH=universal ./build.sh
 ./scripts/make_dmg.sh --skip-build
-./scripts/verify_distribution.sh build/Panopticon-*-universal.dmg
+./scripts/verify_distribution.sh build/Panopticon-1.0.0-universal.dmg
 ```
 
-Local builds use ad-hoc signing unless you supply a Developer ID identity.
-Signing and notarization instructions are in [Distribution](docs/DISTRIBUTION.md).
+Quit the installed app before updating, then run `./scripts/install_app.sh`.
+The installer keeps a verified ZIP backup and rolls back a failed replacement.
+Preferences retain their existing identity. macOS may ask to approve permissions again
+when a build's signing identity changes.
 
-## Dock replacement
+Local builds are ad-hoc signed unless a Developer ID identity is supplied. Ad-hoc
+signing is not Apple notarization. See [distribution](docs/DISTRIBUTION.md) for signed
+packages and the separate publication step.
 
-Enable **Replace system Dock** deliberately in Settings. Panopticon imports pinned
-apps, saves the system Dock settings and restores them when you quit. You can also
-choose **Restore system Dock** from the menu bar or Settings.
+<details>
+<summary><strong>Explore the project</strong></summary>
 
-Auto-hide responds to a short hover at the chosen screen edge. Ordinary mouse clicks,
-app activation and background updates do not reveal the panel.
+- [User guide](docs/USAGE.md) — daily use, widgets, folders and recovery
+- [Privacy](docs/PRIVACY.md) — local data and optional permissions
+- [Architecture](docs/ARCHITECTURE.md) — model, services and contracts
+- [Development](docs/DEVELOPMENT.md) — builds, tests and reproducible screenshots
+- [Localization](docs/LOCALIZATION.md) — catalogs and language checks
+- [Design system](design/README.md) — semantic colors and motion
+- [Validation](docs/VALIDATION.md) — what was actually checked
+- [Release readiness](docs/RELEASE.md) — remaining release gates
 
-Mission Control remains managed by macOS. Panopticon avoids overlapping the system
-Dock there; it does not claim a complete replacement inside Mission Control.
+</details>
 
-## Documentation
+---
 
-- [User guide](docs/USAGE.md)
-- [Privacy and permissions](docs/PRIVACY.md)
-- [Architecture and service contracts](docs/ARCHITECTURE.md)
-- [Development and validation](docs/DEVELOPMENT.md)
-- [Localization](docs/LOCALIZATION.md)
-- [Design system](design/README.md)
-- [Validation status](docs/VALIDATION.md)
+<div align="center">
 
-English files contain English only. Russian counterparts use the `.ru.md` suffix.
+Built for macOS. Yours to use, inspect and improve. [MIT license](LICENSE).
 
-## Quick checks
-
-```sh
-python3 scripts/check_localizations.py
-python3 scripts/check_documentation.py
-swift build -c release
-.build/release/Panopticon --self-test
-.build/release/Panopticon --panel-self-test
-./build.sh
-codesign --verify --deep --strict build/Panopticon.app
-git diff --check
-```
-
-Tests use isolated preferences and do not request permissions, empty the Trash or
-modify real documents. Panel tests need a macOS WindowServer session.
-
-[MIT license](LICENSE).
+</div>

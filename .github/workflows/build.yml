@@ -10,20 +10,16 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
-      - name: Check localization catalogs
-        run: python3 scripts/check_localizations.py
-      - name: Check documentation
-        run: python3 scripts/check_documentation.py
-      - name: Release build
-        run: swift build -c release
-      - name: Regression tests
-        run: |
-          .build/release/Panopticon --self-test
-          .build/release/Panopticon --panel-self-test
+      - name: Source acceptance
+        run: ./scripts/check_release.sh
       - name: Package and verify app
-        run: ./build.sh
+        run: ARCH=universal ./build.sh
       - name: Package DMG
         run: ./scripts/make_dmg.sh --skip-build
+      - name: Installer rollback
+        run: ./scripts/test_install.sh
+      - name: Verify distribution
+        run: ./scripts/verify_distribution.sh build/*.dmg
       - name: Archive app
         run: ditto -c -k --keepParent build/Panopticon.app build/Panopticon.zip
       - uses: actions/upload-artifact@v4
@@ -33,3 +29,4 @@ jobs:
             build/Panopticon.zip
             build/*.dmg
             build/*.sha256
+            build/*.manifest.json

@@ -15,8 +15,10 @@ for path in paths:
         assert not re.search('[А-Яа-яЁё]', text), f'Cyrillic in English documentation: {relative}'
     assert partner.is_file(), f'Missing language pair: {relative}'
     assert not re.search(r'newmacbar|freedock|fashion_hab', text, re.IGNORECASE), f'Obsolete name: {relative}'
-    assert not re.search(r'\b0\.[0-6]\.\d+\b', text), f'Obsolete release reference: {relative}'
-    for target in re.findall(r'\[[^\]]*\]\(([^)]+)\)', text):
+    assert not re.search(r'\b0\.\d+\.\d+\b', text), f'Obsolete release reference: {relative}'
+    targets = re.findall(r'\[[^\]]*\]\(([^)]+)\)', text)
+    targets += re.findall(r'(?:src|href)="([^"]+)"', text)
+    for target in targets:
         if '://' in target or target.startswith('#'):
             continue
         target = target.split('#', 1)[0].strip('<>')

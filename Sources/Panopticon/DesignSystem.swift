@@ -89,8 +89,10 @@ final class UIStateStore: ObservableObject {
     }
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        section = defaults.string(forKey: "ui.settingsSection") ?? "appearance"
-        appearance = defaults.string(forKey: "ui.appearance") ?? "system"
+        section = SettingsRules.choice(defaults.string(forKey: "ui.settingsSection") ?? "appearance",
+            ["appearance", "spaces", "apps", "collections", "widgets", "connections", "profiles", "behavior", "shortcuts", "system", "about"], fallback: "appearance")
+        appearance = SettingsRules.choice(defaults.string(forKey: "ui.appearance") ?? "system",
+            ["system", "light", "dark"], fallback: "system")
         onboardingCompleted = defaults.bool(forKey: "ui.onboardingCompleted")
     }
     var colorScheme: ColorScheme? { appearance == "light" ? .light : appearance == "dark" ? .dark : nil }

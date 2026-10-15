@@ -145,7 +145,7 @@ struct SettingsView: View {
                         }
                         page
                         if !message.isEmpty {
-                            Label(message, systemImage: "info.circle").font(Studio.caption).foregroundStyle(
+                            Label(localization.status(message), systemImage: "info.circle").font(Studio.caption).foregroundStyle(
                                 .secondary
                             ).textSelection(.enabled)
                         }
@@ -205,7 +205,7 @@ struct SettingsView: View {
                 Text(description).font(Studio.caption).foregroundStyle(.secondary).fixedSize(
                     horizontal: false, vertical: true)
             }
-        }.toggleStyle(.switch)
+        }.toggleStyle(.switch).accessibilityLabel(title).accessibilityHint(description)
     }
     func slider(_ title: String, _ binding: Binding<Double>, _ range: ClosedRange<Double>, _ value: String)
         -> some View

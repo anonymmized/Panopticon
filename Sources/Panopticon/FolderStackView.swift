@@ -8,7 +8,7 @@ struct FolderEntry: Identifiable {
     var id: String { url.path }
 }
 
-/// UI adapter until C06 supplies FolderState. All directory I/O stays off main;
+/// All directory I/O stays off main; cancellation reaches the worker and
 /// obsolete results cannot update a closed or refreshed popover.
 final class FolderPresentationLoader: ObservableObject {
     @Published private(set) var entries: [FolderEntry] = []
@@ -26,13 +26,14 @@ final class FolderPresentationLoader: ObservableObject {
         entries = []; limited = false
         error = ""
         task = Task { @MainActor [weak self] in
-            let result = await Task.detached(priority: .userInitiated) {
-                () -> ([FolderEntry], Bool, String) in
+            guard !Task.isCancelled else { return }
+            let worker = Task.detached(priority: .userInitiated) {
+                () -> ([FolderEntry], Bool, LocalizedMessage?) in
                 let manager = FileManager.default
                 do {
                     let values = try folder.resourceValues(forKeys: [.isDirectoryKey])
                     guard values.isDirectory == true else {
-                        return ([], false, L("Папка перемещена или удалена."))
+                        return ([], false, "Папка перемещена или удалена.")
                     }
                     var enumerationError: Error?
                     guard
@@ -46,10 +47,10 @@ final class FolderPresentationLoader: ObservableObject {
                                 enumerationError = error
                                 return false
                             })
-                    else { return ([], false, L("Папка недоступна. Проверь диск и доступ в Finder.")) }
+                    else { return ([], false, "Папка недоступна. Проверь диск и доступ в Finder.") }
                     var entries: [FolderEntry] = []
-                    while let url = enumerator.nextObject() as? URL {
-                        if entries.count == FolderPresentationLoader.limit { return (entries, true, "") }
+                    while !Task.isCancelled, let url = enumerator.nextObject() as? URL {
+                        if entries.count == FolderPresentationLoader.limit { return (entries, true, nil) }
                         let values = try? url.resourceValues(forKeys: [
                             .contentModificationDateKey, .isDirectoryKey,
                         ])
@@ -61,24 +62,27 @@ final class FolderPresentationLoader: ObservableObject {
                     if enumerationError != nil {
                         return (
                             [], false,
-                            L("Не удалось прочитать папку. Проверь подключение диска и доступ в Finder.")
+                            "Не удалось прочитать папку. Проверь подключение диска и доступ в Finder."
                         )
                     }
-                    return (entries, false, "")
+                    return (entries, false, nil)
                 } catch {
                     let code = (error as NSError).code
                     return (
                         [], false,
                         code == NSFileNoSuchFileError || code == NSFileReadNoSuchFileError
-                            ? L("Папка перемещена или удалена.")
-                            : L("Нет доступа к папке. Открой её в Finder и проверь разрешения.")
+                            ? "Папка перемещена или удалена."
+                            : "Нет доступа к папке. Открой её в Finder и проверь разрешения."
                     )
                 }
-            }.value
+            }
+            let result = await withTaskCancellationHandler {
+                await worker.value
+            } onCancel: { worker.cancel() }
             guard let self, self.generation == token, !Task.isCancelled else { return }
             self.entries = result.0
             self.limited = result.1
-            self.error = result.2
+            self.error = result.2.map { L($0) } ?? ""
             self.loading = false
         }
     }
@@ -86,6 +90,7 @@ final class FolderPresentationLoader: ObservableObject {
         generation = UUID()
         task?.cancel()
         task = nil
+        loading = false
     }
     deinit { task?.cancel() }
 }
@@ -139,7 +144,7 @@ struct FolderStackView: View {
                 ProgressView(L("Читаю папку…")).frame(maxWidth: .infinity).padding(.vertical, 20)
             } else if !loader.error.isEmpty {
                 EmptyState(
-                    symbol: "folder.badge.questionmark", title: L("Папка недоступна"), detail: loader.error)
+                    symbol: "folder.badge.questionmark", title: L("Папка недоступна"), detail: localization.status(loader.error))
                 Button(L("Повторить")) { loader.load(folder) }
             } else if entries.isEmpty {
                 EmptyState(
