@@ -1,6 +1,7 @@
 # C01 — предложение: версионированное хранение, резервирование и миграции
 
-**Статус:** черновик для согласования (волна 0). Кода нет — по плану код C01 начинается после P01.
+**Статус:** черновик v2 для согласования (волна 0). Кода нет — по плану код C01 начинается после P01.
+**v2:** сверено с дизайном Gemini (`design/` G01–G04, `design_tokens.json`) — см. раздел 11.
 **Автор:** Claude. **Ревью:** Codex (реализуемость, жизненный цикл), владелец (решения из раздела 9).
 **База анализа:** `main` @ `53dd4a3` (NewMacBar 0.5.0).
 **Проверено:** только чтение исходников. На macOS ничего не запускалось — **не проверено**.
@@ -118,6 +119,13 @@ struct SettingsSnapshot: Codable, Equatable {
     var widgets: WidgetSettings
     var calendar: CalendarSettings
     var launcher: LauncherSettings
+    var shortcuts: [ShortcutBinding]           // C07: реестр, редактируется HotkeyRecorder (G02)
+}
+
+/// v2: явное различие «все календари» и «ни одного» (G03 3.2, состояние 3).
+enum CalendarSelection: Codable, Equatable {
+    case all                                  // 0.5.0: пустой selectedCalendarIDs означал «все»
+    case only(Set<String>)                    // .only([]) = пользователь снял все галочки
 }
 
 struct SpaceRecord: Codable, Equatable, Identifiable {
@@ -149,8 +157,9 @@ struct ProfileRecord: Codable, Equatable, Identifiable {
     var id: String
     var name: String
     var appearance: AppearanceSettings
-    var items: [ItemRecord]
+    var items: [ItemRecord]                   // снимок текущего набора (как в 0.5.0)
     var collections: [CollectionRecord]
+    var spaces: [SpaceRecord]?                // v2: G01 «по выбору при импорте — список пространств»; nil = не сохранялись (Q9)
 }
 ```
 
@@ -158,6 +167,12 @@ struct ProfileRecord: Codable, Equatable, Identifiable {
 структуры полей из таблицы 1.2, сгруппированные по смыслу, с enum-типами
 (`DockEdge`, `DockTheme`, `HoverStyle`, `LaunchStyle`, `IndicatorStyle`, `WidgetKind`, `WidgetStyle`,
 `WidgetAccent`, `ClockFormat`, `ClockAction`, `PlayerPreference`, `CalendarDestination`, `LauncherShortcut`).
+Строковые rawValue enum-ов совпадают с 0.5.0 и с ID в `design_tokens.json` (темы, акценты) — G02 требует
+обратной совместимости идентификаторов.
+
+**Лимиты (`SettingsLimits`, согласовано с G01 раздел 5):** пространств 30, коллекций 50, приложений в коллекции 200,
+элементов в пространстве 500, профилей 50. Превышение при загрузке/импорте — предупреждение и отчёт, не молчаливое
+удаление (D3, D7).
 Диапазоны чисел — из `SettingsRules`/`sanitized()`, вынесенные в одно место (`SettingsLimits`).
 
 **Разделение пространства и профиля (D5, требование C02):** в v1 у панели нет отдельных верхнеуровневых
@@ -288,7 +303,10 @@ struct ImportPreview {
 4. Элементы: `paths` → `ItemRecord(kind: .app)`; `links` → `ItemRecord(kind: .web/.folder/.file)` по
    `QuickLink.kind`; порядок: сначала приложения, затем ссылки (как рисует 0.5.0). Новые UUID.
    **Без проверки существования файлов.**
-5. Профили: `DockProfile` → `ProfileRecord`; `ProfileAppearance` optional-поля → дефолты.
+5. Профили: `DockProfile` → `ProfileRecord` (`spaces = nil`); `ProfileAppearance` optional-поля → дефолты.
+5a. Календари: `selectedCalendarIDs == []` → `CalendarSelection.all`; непустой → `.only(Set(ids))`.
+    **Иначе после миграции у всех пользователей 0.5.0 пропадут события** (G03 трактует пустой выбор как «ни одного»).
+5b. Хоткеи: `launcherEnabled` + `launcherShortcutChoice` + встроенные ⌃⌥1…9, ⌃⌥←/→, ⌃⌥D → `[ShortcutBinding]`.
 6. Оформление/поведение/виджеты/календарь/поиск — из ключей таблицы 1.2 с той же нормализацией.
 7. `layoutVersion < 2` → применить поправки из `main.swift` (iconSize 36, spacing 8, bottom 4, radius 20,
    magnification 1.35, opacity 0.08) в процессе миграции; после C01 этот код из `main.swift` убирается.
@@ -317,6 +335,8 @@ struct ImportPreview {
 | Дубли ID, 31+ пространство, повторяющийся `desktop`, неизвестный enum | DAT-06 |
 | `flush()` при выходе пишет последний снимок; в idle 5 минут — 0 записей | 12.1 «Хранение» |
 | Импорт настроек не трогает `systemDockBackup` | контракт X01 |
+| `selectedCalendarIDs = []` из 0.5.0 → `.all`, события видны; `.only([])` → состояние «не выбран ни один» | CAL-01 |
+| Профиль с `spaces = nil` применяется без изменения пространств | SPC-02 |
 
 Тестовые данные — во временном каталоге и отдельном `UserDefaults(suiteName:)`, никогда в реальном домене.
 
@@ -333,6 +353,8 @@ struct ImportPreview {
 | Q5 | Удалять ли старые ключи UserDefaults после миграции? | Нет в 1.0 (откат на 0.5.0). Удаление — после 1.0. |
 | Q6 | Codex: допустим ли синхронный `load()` на main до показа панели (оценка ≤ 20 мс на 30 пространств × 500 элементов)? | Да; если нет — асинхронная загрузка с пустой панелью-заглушкой. |
 | Q7 | Codex: где вызывать `flush()` — `applicationWillTerminate`, `willSleep`, закрытие настроек. Что-то ещё (выход из профиля пользователя)? | `NSWorkspace.willPowerOffNotification` тоже. |
+| Q8 | Gemini/владелец: `CalendarSelection` вместо пустого массива (см. 5a) — подтвердить. | Да. |
+| Q9 | Владелец: профиль хранит **все** пространства (G01) или только текущий набор (0.5.0)? | Опционально: галочка «Включить пространства» при сохранении и при импорте. |
 
 ---
 
@@ -346,3 +368,19 @@ struct ImportPreview {
 | C01d | Экспорт полного архива, предпросмотр импорта, восстановление из копии (UI — Codex) | `Settings/SettingsArchive.swift` | DAT-05 |
 
 У каждой подзадачи — своя ветка `claude/C01x-…` и своя проверка на Mac у Codex.
+
+---
+
+## 11. Сверка с дизайном Gemini (v2)
+
+| Документ Gemini | Что требует от хранения | Решение в C01 v2 |
+|---|---|---|
+| G01 §3, G01 §5 «Система» | профиль может включать список пространств | `ProfileRecord.spaces: [SpaceRecord]?` (Q9) |
+| G01 §5 «О программе» | показать версию схемы данных | `SettingsSnapshot.schemaVersion` + `SettingsStore.backups()` |
+| G01 §5 «Система» | список автоматических бэкапов и восстановление | `backups()`, `restore(_:)` — раздел 5 |
+| G01 §4 сц. 6, G03 3.6 | недоступная папка не удаляется, ярлык «как есть» | D1 + «существование не проверяется никогда» (4.2) |
+| G01 §5 «Приложения» | лимиты коллекций 50 / 200 | `SettingsLimits` (раздел 4) |
+| G01 §5 «Приложения» | недавние приложения в настройках | `runtime.json` → `RuntimeState.recentApps` (только чтение для UI) |
+| G02 §5, G01 §5 «Клавиши» | редактируемые сочетания (`HotkeyRecorder`) | `SettingsSnapshot.shortcuts` (C07) |
+| G03 3.2 | «не выбран ни один календарь» — отдельное состояние | `CalendarSelection` (Q8, миграция 5a) |
+| design_tokens.json | ID тем и акцентов | rawValue enum-ов не меняются |
