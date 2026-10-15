@@ -58,10 +58,10 @@ struct MiniWidget: View {
                 }
             } else if kind == "calendar" {
                 VStack(spacing: 1) {
-                    Text(Date().formatted(.dateTime.month(.abbreviated)).uppercased()).font(
+                    Text(Date().formatted(.dateTime.month(.abbreviated).locale(localization.locale)).uppercased()).font(
                         .system(size: 6, weight: .bold)
                     ).foregroundStyle(.white.opacity(0.65))
-                    Text(Date().formatted(.dateTime.day())).font(.system(size: 20, weight: .semibold))
+                    Text(Date().formatted(.dateTime.day().locale(localization.locale))).font(.system(size: 20, weight: .semibold))
                 }.frame(width: 28)
                 if !compact {
                     VStack(alignment: .leading, spacing: 4) {

@@ -302,9 +302,10 @@ final class BarView: NSView, NSDraggingSource {
                 switch kind {
                 case "music": return self.music.permissionDenied ? L("Нет доступа к плееру") : self.music.title + ", " + self.music.artist + (self.music.playing ? L(", воспроизводится") : L(", пауза"))
                 case "timer": return self.focus.text + (self.focus.isRunning ? L(", таймер запущен") : L(", таймер остановлен"))
-                case "calendar": return Date().formatted(date: .complete, time: .omitted) + (self.agenda.nextEvent.map { ", " + $0.title + ", " + $0.time } ?? "")
+                case "calendar": return Date().formatted(.dateTime.weekday(.wide).day().month(.wide).year().locale(Localization.shared.locale)) + (self.agenda.nextEvent.map { ", " + $0.title + ", " + $0.time } ?? "")
                 default:
-                    let formatter = DateFormatter(); formatter.dateFormat = (self.model.clockFormat == "12h" ? "h:mm a" : "HH:mm") + (self.model.clockSeconds ? ":ss" : "")
+                    let formatter = DateFormatter(); formatter.locale = Localization.shared.locale
+                    formatter.dateFormat = (self.model.clockFormat == "12h" ? "h:mm" : "HH:mm") + (self.model.clockSeconds ? ":ss" : "") + (self.model.clockFormat == "12h" ? " a" : "")
                     return formatter.string(from: Date())
                 }
             }

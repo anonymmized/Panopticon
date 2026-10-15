@@ -39,5 +39,24 @@ separate hardware and user-driven verification.
 Ad-hoc signing does not mean Apple notarization. Mission Control remains controlled
 by macOS and can show its own Dock; Panopticon avoids overlapping that system surface.
 
-Live computer-use review was unavailable during integration: the tool returned
-`cgWindowNotFound`. Full interactive review is not recorded as passed.
+## Installed-app review
+
+The installed app was reviewed with native computer-use controls: all eleven settings
+sections, English-to-System language switching, sidebar search, light appearance and
+restoration of the previous appearance. The real sidebar renders correctly; the blank
+sidebar in offscreen render fixtures is a snapshot limitation.
+
+An existing configuration retained all ten pinned apps and its space, profiles,
+collections and shortcuts after installation. Settings navigation and unrelated clicks
+left the auto-hidden panel hidden. A real Mission Control entry and exit confirmed the
+current handoff and quiet return.
+
+Replacing the system Dock inside Mission Control is an open requirement. The current
+build hides Panopticon there to prevent overlap. AppKit's
+[`presentationOptions`](https://developer.apple.com/documentation/appkit/nsapplication/presentationoptions-swift.property)
+apply while the owning app is active; they do not provide a global replacement for
+the Dock during overview. The build does not claim to meet that requirement.
+
+Login-item registration, live calendar/player permissions and physical pointer-edge
+gestures were not exercised against the user's configuration. Hover and drag behavior
+were checked through the AppKit panel tests.

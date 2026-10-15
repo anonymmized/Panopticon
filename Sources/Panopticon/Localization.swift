@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 
 /// Stable identity preserves settings, Dock recovery and macOS privacy grants
-/// across the Panopticon → Panopticon rename. This is not a display name.
+/// across product renames. This is not a display name.
 enum AppIdentity {
     static let preferencesDomain = "app.newmacbar.desktop"
 }

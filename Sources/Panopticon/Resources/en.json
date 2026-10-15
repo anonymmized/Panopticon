@@ -494,7 +494,6 @@
   "Открыть": "Open",
   "Включён в macOS": "Enabled in macOS",
   "Нужно подтверждение в настройках macOS": "Approval needed in macOS Settings",
-  "Приложение недоступно для автозапуска. Перенеси его в «Программы».": "App unavailable for login. Move it to Applications.",
   "Статус macOS недоступен": "macOS status unavailable",
   "Не удалось изменить автозапуск. Проверь «Объекты входа» в macOS.": "Could not change the login item. Check Login Items in macOS.",
   "Локальная диагностика": "Local diagnostics",
@@ -703,5 +702,6 @@
   "Профили можно экспортировать в разделе «Стили и профили»; пространства импортируются в разделе «Пространства».": "Export profiles in Styles & profiles; import spaces in Spaces.",
   "Импорт настроек": "Import settings",
   "таймер запущен": "timer running",
-  "таймер остановлен": "timer stopped"
+  "таймер остановлен": "timer stopped",
+  "macOS не обнаружила объект автозапуска. Проверь «Объекты входа» в настройках системы.": "macOS could not find the login item. Check Login Items in System Settings."
 }

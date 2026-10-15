@@ -265,6 +265,7 @@ extension BarView {
                     font: .monospacedDigitSystemFont(ofSize: 8, weight: .semibold), color: foreground)
             } else {
                 let f = DateFormatter()
+                f.locale = Localization.shared.locale
                 f.dateFormat = model.clockFormat == "12h" ? "h" : "HH"
                 drawText(
                     f.string(from: Date()),
@@ -295,7 +296,7 @@ extension BarView {
             drawText(
                 next.map { $0.time + " · " + $0.calendar } ?? f.string(from: Date()),
                 in: NSRect(x: r.minX + 46, y: r.minY + 6, width: r.width - 52, height: 12),
-                font: .systemFont(ofSize: 7.5), color: foreground.withAlphaComponent(0.6))
+                font: .systemFont(ofSize: 10), color: foreground.withAlphaComponent(0.6))
         } else if kind == "clock" {
             let time = DateFormatter(); time.locale = Localization.shared.locale
             time.dateFormat =
@@ -312,7 +313,7 @@ extension BarView {
             drawText(
                 date.string(from: Date()).capitalized,
                 in: NSRect(x: r.minX + 13, y: r.minY + 5, width: r.width - 18, height: 12),
-                font: .systemFont(ofSize: 8.5, weight: .medium), color: foreground.withAlphaComponent(0.6))
+                font: .systemFont(ofSize: 10, weight: .medium), color: foreground.withAlphaComponent(0.6))
         } else if kind == "timer" {
             drawSymbol(
                 focus.isRunning ? "pause.circle.fill" : "play.circle.fill",
@@ -342,7 +343,7 @@ extension BarView {
                 font: .systemFont(ofSize: 10, weight: .semibold), color: foreground)
             drawText(
                 music.artist, in: NSRect(x: x, y: r.maxY - 27, width: r.maxX - x - 7, height: 11),
-                font: .systemFont(ofSize: 7.5), color: foreground.withAlphaComponent(0.6))
+                font: .systemFont(ofSize: 10), color: foreground.withAlphaComponent(0.6))
             for (j, symbol) in ["backward.fill", music.playing ? "pause.fill" : "play.fill", "forward.fill"]
                 .enumerated()
             {

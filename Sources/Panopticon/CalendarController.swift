@@ -9,7 +9,7 @@ struct AgendaEvent: Identifiable, Equatable {
     let allDay: Bool
     let calendar: String
     let color: NSColor
-    var time: String { if allDay { return L("Весь день") }; let f = DateFormatter(); f.dateFormat = "HH:mm"; return f.string(from: start) }
+    var time: String { if allDay { return L("Весь день") }; let f = DateFormatter(); f.locale = Localization.shared.locale; f.dateFormat = "HH:mm"; return f.string(from: start) }
     func overlaps(_ day: Date, in calendar: Calendar = .current) -> Bool {
         let beginning = calendar.startOfDay(for: day)
         guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: beginning) else { return false }

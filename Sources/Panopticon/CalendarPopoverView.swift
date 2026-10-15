@@ -139,7 +139,7 @@ struct CalendarPopoverView: View {
     }
     private func formatted(_ date: Date, _ format: String) -> String {
         let f = DateFormatter()
-        f.locale = .current
+        f.locale = localization.locale
         f.setLocalizedDateFormatFromTemplate(format)
         return f.string(from: date)
     }

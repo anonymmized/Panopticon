@@ -20,7 +20,7 @@ final class LoginService: ObservableObject {
         switch status {
         case .enabled: return L("Включён в macOS")
         case .requiresApproval: return L("Нужно подтверждение в настройках macOS")
-        case .notFound: return L("Приложение недоступно для автозапуска. Перенеси его в «Программы».")
+        case .notFound: return L("macOS не обнаружила объект автозапуска. Проверь «Объекты входа» в настройках системы.")
         case .notRegistered: return L("Выключен")
         @unknown default: return L("Статус macOS недоступен")
         }
