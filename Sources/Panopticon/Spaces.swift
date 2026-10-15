@@ -34,10 +34,7 @@ extension BarModel {
         batch {
             snapshotSpace()
             selectedSpaceID = id
-            pinned = space.paths.compactMap { path in
-                let url = URL(fileURLWithPath: path)
-                return Bundle(url: url)?.bundleIdentifier == nil ? nil : DockItem(url: url)
-            }
+            pinned = Self.restoredPins(space.paths)
             quickLinks = space.links; collections = space.collections
         }
     }

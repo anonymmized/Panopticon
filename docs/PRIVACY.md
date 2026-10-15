@@ -1,27 +1,35 @@
-# Данные и сеть
+# Privacy and permissions
 
-Panopticon не содержит телеметрии, рекламы и платёжных сервисов.
-Состояние хранится локально в UserDefaults `app.newmacbar.desktop`:
-пути приложений/файлов, ярлыки, пространства, профили, оформление,
-выбранные календари, настройки плеера и фокус-сессия.
+[English](PRIVACY.md) | [Russian](PRIVACY.ru.md)
 
-- EventKit читает события подключённых к macOS календарей после разрешения
-  пользователя. Panopticon их не редактирует и никуда не отправляет.
-- AppleScript читает состояние Spotify / Apple Music и управляет ими.
-  Automation запрашивается по действию пользователя. Обложки Spotify
-  загружаются по HTTPS-адресу, который возвращает плеер.
-- Иконки сайтов запрашиваются непосредственно с закреплённого сайта
-  (`/apple-touch-icon.png`, затем `/favicon.ico`) по HTTPS. Сторонних
-  favicon-прокси нет. Сайту виден обычный сетевой запрос и IP-адрес.
-- Папки читаются локально для стопки. Ограничение в 500 элементов касается
-  отображения; приложение не загружает файлы в сеть.
-- Универсальный доступ нужен только для бейджей системного Dock и списка окон.
-  Разрешение необязательно. Оно запрашивается отдельной кнопкой.
-- Исходные настройки системного Dock сохраняются перед заменой и
-  восстанавливаются при выходе. Это не меняет содержимое стандартного Dock.
-- Импорт и экспорт JSON выполняются локально. Такие файлы могут содержать
-  личные пути и названия; публикация исходного кода не должна включать их.
+Panopticon has no telemetry, advertising, payment service or required account.
+Preferences, paths, layouts, profiles, selected calendars and focus sessions stay
+in the application's local preferences domain.
 
-Доступы можно отозвать в «Системные настройки → Конфиденциальность и безопасность».
-Тесты используют временные наборы настроек и не выдают разрешения, не очищают
-Корзину и не изменяют реальные пользовательские документы.
+| Permission | Purpose | Requested |
+|---|---|---|
+| Calendars | Read events from macOS calendar accounts | Connect button |
+| Automation for Spotify / Music | Read and control the chosen player | Explicit player action |
+| Automation for Finder | Empty the system Trash | After confirmation |
+| Accessibility | Optional app window selection and Dock badges | Explicit enable button |
+
+Other features work without these optional connections. Background polling and
+startup never request a new permission. macOS manages consent and revocation.
+Calendar events are read only; Panopticon does not edit or transmit them.
+
+Spotify artwork is fetched from the address provided by the player. Website icons
+are requested directly from sites you add; there is no favicon proxy. Those servers
+receive a normal request and the network address of the connection. Local folder
+contents are not uploaded.
+
+Diagnostics can be previewed before saving. Reports exclude personal paths, event
+contents, website addresses, app lists and display identifiers. Reports are not sent
+automatically. JSON profile exports can contain personal paths and names; keep them
+out of public source repositories.
+
+System Dock settings are copied before replacement. The backup is local and remains
+until recovery succeeds. Normal exit restores those settings. The native pinned app
+list is not cleared or rewritten.
+
+Tests use isolated preference suites and generated fixtures. They do not grant
+permissions, empty the real Trash or mutate user documents.

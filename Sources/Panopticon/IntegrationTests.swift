@@ -1,7 +1,7 @@
 import AppKit
 
 func runIntegrationTests() throws {
-    let suite = "app.panopticon.integration.\(UUID().uuidString)"
+    let suite = "app.newmacbar.integration.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
     let finder = "/System/Library/CoreServices/Finder.app"
@@ -12,11 +12,11 @@ func runIntegrationTests() throws {
     let model = BarModel(defaults: defaults, observe: false)
     let first = model.selectedSpaceID
     precondition(model.spaces.count == 3 && model.pinned.map(\.id) == [finder] && model.iconSize == 42, "Legacy settings migration")
-    let work = model.addSpace(name: "Разработка")!
+    let work = model.addSpace(name: L("Разработка"))!
     precondition(model.pinned.isEmpty, "New space starts empty")
     model.add(URL(fileURLWithPath: calendar))
-    _ = model.addQuickLink(name: "Файлы", kind: "folder", destination: "/private/tmp")
-    model.updateCollection(AppCollection(name: "Инструменты", paths: [finder]))
+    _ = model.addQuickLink(name: L("Файлы"), kind: "folder", destination: "/private/tmp")
+    model.updateCollection(AppCollection(name: L("Инструменты"), paths: [finder]))
     var changes = 0; model.onChange = { changes += 1 }
     model.selectSpace(first)
     precondition(changes == 1 && model.pinned.map(\.id) == [finder] && model.quickLinks.isEmpty && model.collections.isEmpty, "Space changes atomically and isolates layouts")
@@ -46,17 +46,17 @@ func runIntegrationTests() throws {
         "showMusic": true, "showClock": true, "musicSource": "music"
     ]
     let data = try JSONSerialization.data(withJSONObject: fixture)
-    let source = try FreeDockImport.decode(data)
+    let source = try SettingsArchiveImport.decode(data)
     let converted = source.convertedSpaces()
     precondition(converted[0].paths == [finder] && converted[0].links.count == 2, "FreeDock import deduplication and URL validation")
     let previousCount = model.spaces.count
     let previousTheme = model.theme
-    try model.importFreeDock(data, appearance: false)
+    try model.importSettingsArchive(data, appearance: false)
     precondition(model.spaces.count == previousCount + 1 && model.theme == previousTheme && model.calendarWebURL == "https://calendar.google.com", "Import adds spaces and preserves integrations")
-    try model.importFreeDock(data, appearance: true)
+    try model.importSettingsArchive(data, appearance: true)
     precondition(model.theme == "sunset" && model.edge == "right" && model.iconSize == 28 && model.widgetKinds == ["clock", "music"], "Import appearance clamps values")
-    do { _ = try FreeDockImport.decode(Data(count: 5_000_001)); preconditionFailure("Oversized FreeDock import accepted") } catch FreeDockImport.ImportError.tooLarge { }
-    do { _ = try FreeDockImport.decode(Data("{\"spaces\":[]}".utf8)); preconditionFailure("Empty FreeDock import accepted") } catch FreeDockImport.ImportError.invalidSpaces { }
+    do { _ = try SettingsArchiveImport.decode(Data(count: 5_000_001)); preconditionFailure("Oversized FreeDock import accepted") } catch SettingsArchiveImport.ImportError.tooLarge { }
+    do { _ = try SettingsArchiveImport.decode(Data("{\"spaces\":[]}".utf8)); preconditionFailure("Empty FreeDock import accepted") } catch SettingsArchiveImport.ImportError.invalidSpaces { }
     for id in model.spaces.map(\.id) { model.removeSpace(id) }
     precondition(model.spaces.count == 1, "Final space cannot be removed")
     let appearance = ProfileAppearance(model)

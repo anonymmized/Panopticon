@@ -59,9 +59,7 @@ final class MusicController: ObservableObject {
     }
     private var displayingStatus = true
     func relocalizeStatus() {
-        if displayingStatus {
-            title = Localization.shared.status(title); artist = Localization.shared.status(artist)
-        }
+        if displayingStatus { title = Localization.shared.status(title); artist = Localization.shared.status(artist) }
     }
     private func clear() {
         displayingStatus = true

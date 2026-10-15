@@ -1,7 +1,7 @@
 import Foundation
 
 /// Reads the other branch's on-disk schema without sharing its executable/model types.
-struct FreeDockImport: Decodable {
+struct SettingsArchiveImport: Decodable {
     struct Item: Decodable { var path: String }
     struct Space: Decodable { var name: String; var symbol: String?; var items: [Item]; var desktop: Int? }
     var spaces: [Space]
@@ -31,7 +31,7 @@ struct FreeDockImport: Decodable {
     func convertedSpaces() -> [BarSpace] {
         spaces.map { source in
             var result = BarSpace(name: SettingsRules.label(source.name), symbol: source.symbol ?? "house")
-            if result.name.isEmpty { result.name = L("Пространство FreeDock") }
+            if result.name.isEmpty { result.name = L("Импортированное пространство") }
             result.desktop = source.desktop.flatMap { (1...30).contains($0) ? $0 : nil }
             var paths = Set<String>()
             for item in source.items where paths.insert(item.path).inserted {
@@ -62,10 +62,10 @@ struct FreeDockImport: Decodable {
 }
 
 extension BarModel {
-    func importFreeDock(_ data: Data, appearance: Bool) throws {
-        let source = try FreeDockImport.decode(data)
+    func importSettingsArchive(_ data: Data, appearance: Bool) throws {
+        let source = try SettingsArchiveImport.decode(data)
         let additions = source.convertedSpaces()
-        guard spaces.count + additions.count <= 30 else { throw FreeDockImport.ImportError.capacity }
+        guard spaces.count + additions.count <= 30 else { throw SettingsArchiveImport.ImportError.capacity }
         batch {
             snapshotSpace()
             spaces += additions

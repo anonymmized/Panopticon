@@ -1,21 +1,24 @@
-# Общая база Panopticon
+# Panopticon contributor instructions
 
-Единственное приложение находится в `Sources/Panopticon`. Swift 5 language mode,
-macOS 13+, AppKit для панели и SwiftUI для настроек/поповеров. Зависимостей нет.
-Объединённая база 0.5.0 собрана из NewMacBar (теперь Panopticon) и ветки FreeDock. См. `docs/INTEGRATION.md`.
+[English](AGENTS.md) | [Russian](AGENTS.ru.md)
 
-## Работа с ветками
+The single application is in `Sources/Panopticon`. Use Swift 5 language mode,
+macOS 13+, AppKit for the panel and SwiftUI for settings and popovers. No external
+libraries or telemetry. See [Architecture](docs/ARCHITECTURE.md).
 
-- Новые задачи начинаются от актуальной `main`, каждая в отдельной ветке.
-- Заранее согласовать файлы, которые меняют оба разработчика; не переписывать
-  параллельно Model.swift, main.swift или формат настроек без контракта.
-- Не делать push, PR, публикацию или удалённое слияние без указания владельца.
-- Не коммитить `.build`, `build`, бинарники, кеши и установщики.
+## Branches and shared files
 
-## Проверка изменений
+- Start tasks from current `main` in separate branches.
+- Agree on shared changes to Model.swift, main.swift and settings formats before
+  parallel work. Keep a concrete contract for model and service boundaries.
+- Do not push, open a remote PR, publish or merge remotely without owner instruction.
+- Never commit build products, caches, installers or signing credentials.
+
+## Checks
 
 ```sh
 python3 scripts/check_localizations.py
+python3 scripts/check_documentation.py
 swift build -c release
 .build/release/Panopticon --self-test
 .build/release/Panopticon --panel-self-test
@@ -24,27 +27,27 @@ codesign --verify --deep --strict build/Panopticon.app
 git diff --check
 ```
 
-Для теста панели нужен macOS WindowServer. В Linux тесты AppKit не запускать;
-перед слиянием нужна проверка на Mac. Папки/музыка/календари с реальными
-разрешениями проверяются отдельно и только по действию пользователя.
-Для локального DMG: `./scripts/make_dmg.sh`.
+Panel tests need macOS WindowServer. Do not run AppKit tests on Linux. Real folder,
+music and calendar permission checks are separate and require user action. Package
+locally with `./scripts/make_dmg.sh`; this does not authorize upload or publication.
 
-## Инварианты
+## Invariants
 
-- `BarModel` — источник состояния. Несколько полей менять внутри `batch`.
-- `BarSpace` хранит приложения, ярлыки и коллекции; профили хранят оформление
-  и снимок текущей панели. Интеграции календаря общие для всех пространств.
-- Перед сменой пространства сохраняется прежний снимок; ID выбранного
-  пространства должен оставаться валидным после удаления и перестановки.
-- Новые поля Codable должны читать старые файлы с дефолтом или быть optional.
-  Новые настройки UserDefaults имеют дефолт и нормализацию при загрузке.
-- Панель не получает keyboard focus. Прозрачные поля пропускают клики через
-  `ignoresMouseEvents`, включая после смены края и увеличения иконок.
-- Контекстные меню — нативные NSMenu, создаются в момент клика.
-- Системный Dock изменяется только при включённой пользователем замене;
-  его исходные настройки сохраняются и восстанавливаются при выходе.
-- Разрешения никогда не запрашиваются фоновым опросом или при старте.
-- Таймеры и наблюдатели удаляются при завершении; замыкания владельцев — weak.
-- Никакой телеметрии и сторонних библиотек.
-- Не выполнять очистку Корзины, изменение реальных файлов или подключение
-  разрешений в автоматических тестах. Использовать отдельные UserDefaults suites.
+- `BarModel` owns state. Change related fields inside `batch`.
+- `BarSpace` owns apps, shortcuts and collections; profiles own appearance and a panel
+  snapshot. Calendar connections are global across spaces.
+- Snapshot the previous space before switching. Keep a valid selected ID after
+  deletion and reordering.
+- Decode new Codable fields with a default or make them optional. Normalize new
+  UserDefaults settings and preserve existing data and stable application identity.
+- The panel never takes keyboard focus. Transparent margins pass clicks through
+  using `ignoresMouseEvents`, including after edge changes and magnification.
+- Build native NSMenu context menus at click time.
+- Change the system Dock only when the user enables replacement. Save and restore
+  the exact original settings; retain the recovery copy after failure.
+- Never request permissions during startup or background polling.
+- Tear down timers and observers; owner-capturing closures use weak references.
+- Tests use isolated preference suites and generated fixtures. Never empty the real
+  Trash, alter user documents or connect real permissions in automated tests.
+- Pair documentation in English and Russian. English Markdown contains no Cyrillic.
+  Describe the current product; keep implementation history in Git.

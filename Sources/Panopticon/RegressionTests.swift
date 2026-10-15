@@ -14,10 +14,10 @@ func runRegressionTests(defaults: UserDefaults, model: BarModel) throws {
     var notifications = 0; model.onChange = { notifications += 1 }
     model.batch { model.batch { model.iconSize = 42; model.opacity = 0.2 }; model.cornerRadius = 18 }
     precondition(notifications == 1, "Nested batches must publish once")
-    model.saveProfile(name: "Работа"); let first = model.profiles.last!
-    model.saveProfile(name: "работа"); precondition(model.profiles.count == 1 && model.profiles[0].id == first.id, "Same named profile must update")
-    model.saveProfile(name: "Личное"); precondition(!model.renameProfile(first.id, to: "Личное"), "Duplicate profile rename")
-    precondition(model.renameProfile(first.id, to: "Рабочая панель"), "Profile rename")
+    model.saveProfile(name: L("Работа")); let first = model.profiles.last!
+    model.saveProfile(name: L("работа")); precondition(model.profiles.count == 1 && model.profiles[0].id == first.id, "Same named profile must update")
+    model.saveProfile(name: L("Личное")); precondition(!model.renameProfile(first.id, to: L("Личное")), "Duplicate profile rename")
+    precondition(model.renameProfile(first.id, to: L("Рабочая панель")), "Profile rename")
     model.iconSize = 48; model.updateProfile(first.id); precondition(model.profiles.first!.appearance.iconSize == 48, "Update profile snapshot")
     let data = try ProfileArchive(profile: model.profiles[0]).data()
     let imported = try ProfileArchive.decode(data)
@@ -70,13 +70,13 @@ func runRegressionTests(defaults: UserDefaults, model: BarModel) throws {
 
     let backup: [String: Any] = ["autohide": false, "autohide-delay": 0.3, "autohide-time-modifier": "__absent__"]
     defaults.set(backup, forKey: "systemDockBackup")
-    let failure = DockIntegration(defaults: defaults) { _, args in CommandResult(status: args.contains("autohide-delay") ? 13 : 0, output: "permission denied") }
+    let failure = DockIntegration(defaults: defaults, execute: { _, args in CommandResult(status: args.contains("autohide-delay") ? 13 : 0, output: "permission denied") })
     failure.restore(); precondition(defaults.dictionary(forKey: "systemDockBackup") != nil, "Failed restore must retain recovery backup")
-    let missing = DockIntegration(defaults: defaults) { _, args in
+    let missing = DockIntegration(defaults: defaults, execute: { _, args in
         if args.first == "delete" { return CommandResult(status: 1, output: "missing") }
         if args.first == "read" { return CommandResult(status: 1, output: "does not exist") }
         return CommandResult(status: 0, output: "")
-    }
+    })
     missing.restore(); precondition(defaults.dictionary(forKey: "systemDockBackup") == nil, "Successful restoration deletes backup")
     print("PASS: geometry, nested updates, profile editing/import, preference recovery, shortcut editing, keyboard layouts, month boundaries, player metadata, persisted timers, Dock recovery")
 }
@@ -84,7 +84,7 @@ func runRegressionTests(defaults: UserDefaults, model: BarModel) throws {
 
 func runPanelSelfTests() {
     _ = NSApplication.shared
-    let suite = "app.panopticon.paneltest.\(UUID().uuidString)"
+    let suite = "app.newmacbar.paneltest.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
     defaults.set(["/System/Library/CoreServices/Finder.app"], forKey: "pinned")
@@ -133,12 +133,6 @@ func runPanelSelfTests() {
         }
     }
     runDragDropTests(bar: bar, model: model, panel: panel)
-    for (language, settingsTitle, trashTitle) in [(AppLanguage.english, "Panopticon settings…", "Trash"), (.russian, "Настройки Panopticon…", "Корзина")] {
-        Localization.shared.withTemporaryLanguage(language) {
-            bar.refresh()
-            precondition(bar.menu(for: event)?.items.contains { $0.title == settingsTitle } == true, "Localized native context menu")
-            precondition((bar.accessibilityChildren() as? [BarAccessibilityButton])?.contains { $0.accessibilityLabel() == trashTitle } == true, "Localized accessibility labels")
-        }
-    }
+    runWindowControllerTests()
     print("PASS: panel passthrough, re-entry, first click, glass hit-test, focus and native menu")
 }

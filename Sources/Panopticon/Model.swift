@@ -18,6 +18,7 @@ struct DockItem: Identifiable, Equatable {
 final class BarModel: ObservableObject {
     static let shared = BarModel()
     private let defaults: UserDefaults
+    private let systemDockProvider: () -> [DockItem]
     @Published var pinned: [DockItem] = []
     @Published var running: [NSRunningApplication] = []
     @Published var iconSize: Double { didSet { save() } }
@@ -52,13 +53,14 @@ final class BarModel: ObservableObject {
     @Published var calendarAppPath: String { didSet { save() } }
     @Published var calendarWebURL: String { didSet { save() } }
     @Published var clockAction: String { didSet { save() } }
-    @Published var secondaryWidget: String { didSet { if secondaryWidget == widget { secondaryWidget = "none" }; save() } }
+    @Published var secondaryWidget: String { didSet { if secondaryWidget != "none" && secondaryWidget == widget { secondaryWidget = "none" }; save() } }
     @Published var calendarEventsEnabled: Bool { didSet { save() } }
     @Published var launcherShortcutChoice: String { didSet { save() } }
     @Published var launcherShortcutAvailable = false
     @Published var launcherEnabled: Bool { didSet { save() } }
     @Published var hoverGlow: Bool { didSet { save() } }
     @Published var reduceMotion: Bool { didSet { save() } }
+    @Published var motionMode: String { didSet { save() } }
     @Published var quickLinks: [QuickLink] = []
     @Published var profiles: [DockProfile] = []
     @Published var selectedCalendarIDs: [String] = []
@@ -81,8 +83,10 @@ final class BarModel: ObservableObject {
     var onChange: (() -> Void)?
     private var observers: [NSObjectProtocol] = []
 
-    init(defaults: UserDefaults = .standard, observe: Bool = true) {
+    init(defaults: UserDefaults = .standard, observe: Bool = true,
+         systemDockProvider: @escaping () -> [DockItem] = BarModel.systemDockItems) {
         self.defaults = defaults
+        self.systemDockProvider = systemDockProvider
         edge = SettingsRules.choice(defaults.string(forKey: "edge") ?? "bottom", DockEdge.allCases.map(\.rawValue), fallback: "bottom")
         showSpaces = defaults.object(forKey: "showSpaces") as? Bool ?? true
         showTrash = defaults.object(forKey: "showTrash") as? Bool ?? true
@@ -127,15 +131,18 @@ final class BarModel: ObservableObject {
         launcherShortcutChoice = defaults.string(forKey: "launcherShortcutChoice") ?? "controlOptionSpace"
         launcherEnabled = defaults.object(forKey: "launcherEnabled") as? Bool ?? true
         hoverGlow = defaults.object(forKey: "hoverGlow") as? Bool ?? true
-        reduceMotion = defaults.object(forKey: "reduceMotion") as? Bool ?? false
+        let savedReduceMotion = defaults.object(forKey: "reduceMotion") as? Bool ?? false
+        reduceMotion = savedReduceMotion
+        motionMode = SettingsRules.choice(defaults.string(forKey: "motionMode") ?? (savedReduceMotion ? "reduced" : "system"),
+            DockMotionMode.allCases.map(\.rawValue), fallback: "system")
         if let data = defaults.data(forKey: "quickLinks"), let stored = try? JSONDecoder().decode([QuickLink].self, from: data) { quickLinks = stored }
         if let data = defaults.data(forKey: "profiles"), let stored = try? JSONDecoder().decode([DockProfile].self, from: data) { profiles = stored }
         selectedCalendarIDs = defaults.stringArray(forKey: "selectedCalendarIDs") ?? []
         if let data = defaults.data(forKey: "collections"), let stored = try? JSONDecoder().decode([AppCollection].self, from: data) { collections = stored }
         if let paths = defaults.array(forKey: "pinned") as? [String] {
-            pinned = paths.map { DockItem(url: URL(fileURLWithPath: $0)) }.filter { FileManager.default.fileExists(atPath: $0.id) }
+            pinned = Self.restoredPins(paths)
         } else {
-            pinned = Self.systemDockItems()
+            pinned = systemDockProvider()
         }
         if let data = defaults.data(forKey: "spaces"), let saved = try? JSONDecoder().decode([BarSpace].self, from: data), !saved.isEmpty {
             var ids = Set<String>()
@@ -147,7 +154,7 @@ final class BarModel: ObservableObject {
             selectedSpaceID = defaults.string(forKey: "selectedSpaceID") ?? spaces[0].id
             if !spaces.contains(where: { $0.id == selectedSpaceID }) { selectedSpaceID = spaces[0].id }
             if let current = spaces.first(where: { $0.id == selectedSpaceID }) {
-                pinned = current.paths.map { DockItem(url: URL(fileURLWithPath: $0)) }.filter { $0.bundleID != nil && FileManager.default.fileExists(atPath: $0.id) }
+                pinned = Self.restoredPins(current.paths)
                 quickLinks = current.links; collections = current.collections
             }
         } else {
@@ -157,6 +164,7 @@ final class BarModel: ObservableObject {
         }
         recentAppPaths = defaults.stringArray(forKey: "recentAppPaths") ?? []
         batch {
+            importSystemDockIfNeeded()
             ProfileAppearance(self).sanitized().apply(to: self)
             timerMinutes = SettingsRules.number(timerMinutes, 5...90, fallback: 25)
             screenIndex = max(0, screenIndex)
@@ -175,19 +183,17 @@ final class BarModel: ObservableObject {
         } else { rebuildItems() }
     }
     static func systemDockItems() -> [DockItem] {
-        let dock = UserDefaults.standard.persistentDomain(forName: "com.apple.dock")
-        let tiles = dock?["persistent-apps"] as? [[String: Any]] ?? []
-        var result: [DockItem] = []
-        for tile in tiles {
-            guard let data = tile["tile-data"] as? [String: Any], let file = data["file-data"] as? [String: Any], let path = file["_CFURLString"] as? String, let url = URL(string: path), url.isFileURL, FileManager.default.fileExists(atPath: url.path) else { continue }
-            let item = DockItem(url: url)
-            guard item.bundleID != nil, url.pathExtension.lowercased() == "app" else { continue }
-            if !result.contains(where: { $0.id == item.id }) { result.append(item) }
+        SystemDockImport.items(from: UserDefaults.standard.persistentDomain(forName: "com.apple.dock") ?? [:])
+    }
+    static func restoredPins(_ paths: [String]) -> [DockItem] {
+        var seen = Set<String>()
+        return paths.compactMap { path in
+            let url = URL(fileURLWithPath: path).standardizedFileURL
+            guard path.hasPrefix("/"), url.pathExtension.lowercased() == "app",
+                seen.insert(url.path).inserted else { return nil }
+            // An unmounted disk or an app update must never erase a launcher.
+            return DockItem(url: url)
         }
-        if result.isEmpty {
-            result = ["/System/Library/CoreServices/Finder.app", "/Applications/Safari.app", "/System/Applications/Messages.app", "/System/Applications/System Settings.app"].filter { FileManager.default.fileExists(atPath: $0) }.map { DockItem(url: URL(fileURLWithPath: $0)) }
-        }
-        return result
     }
     private func rebuildItems() {
         var list = pinned
@@ -212,7 +218,13 @@ final class BarModel: ObservableObject {
         running = NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular }
         rebuildItems(); onChange?()
     }
-    func isRunning(_ item: DockItem) -> Bool { running.contains { $0.bundleIdentifier == item.bundleID } }
+    func runningApplication(for item: DockItem) -> NSRunningApplication? {
+        running.first { app in
+            if let id = item.bundleID { return app.bundleIdentifier == id }
+            return app.bundleURL?.standardizedFileURL.path == item.id
+        }
+    }
+    func isRunning(_ item: DockItem) -> Bool { runningApplication(for: item) != nil }
     func add(_ url: URL, at index: Int? = nil) {
         guard url.pathExtension.lowercased() == "app", let bundle = Bundle(url: url), bundle.bundleIdentifier != nil else { return }
         let item = DockItem(url: url)
@@ -239,7 +251,44 @@ final class BarModel: ObservableObject {
         save()
     }
     func removeCollection(_ id: String) { collections.removeAll { $0.id == id }; save() }
-    func importDock() { pinned = Self.systemDockItems(); save() }
+    @discardableResult func importDock() -> Int {
+        let before = pinned.count
+        let source = systemDockProvider()
+        batch {
+            var paths = Set(pinned.map(\.id))
+            var bundles = Set(pinned.compactMap(\.bundleID))
+            for item in source {
+                guard !paths.contains(item.id), item.bundleID.map({ !bundles.contains($0) }) ?? true else { continue }
+                pinned.append(item)
+                paths.insert(item.id)
+                if let id = item.bundleID { bundles.insert(id) }
+            }
+            defaults.set(1, forKey: "systemDockImportVersion")
+        }
+        return pinned.count - before
+    }
+    /// One-time repair for older installations that hid the Dock with an empty
+    /// pinned list. Removing a launcher after migration remains intentional.
+    func importSystemDockIfNeeded() {
+        guard replaceDock, defaults.integer(forKey: "systemDockImportVersion") < 1 else { return }
+        importDock()
+    }
+    func applyNativeDockStyle() {
+        batch {
+            theme = "glass"
+            iconSize = 44; iconSpacing = 8; bottomOffset = 6; cornerRadius = 20
+            magnification = 1.65; hoverLift = 6; hoverStyle = "lift"
+            launchStyle = "bounce"; indicatorStyle = "dot"
+            opacity = 0.08; hoverGlow = false; showLabels = true; showSeparator = true
+            reduceMotion = false; motionMode = "full"
+        }
+    }
+    func setMotionMode(_ value: String) {
+        batch {
+            reduceMotion = false
+            motionMode = SettingsRules.choice(value, DockMotionMode.allCases.map(\.rawValue), fallback: "system")
+        }
+    }
     func save() {
         guard batchDepth == 0 else { return }
         snapshotSpace()
@@ -261,6 +310,7 @@ final class BarModel: ObservableObject {
         defaults.set(launcherEnabled, forKey: "launcherEnabled")
         defaults.set(hoverGlow, forKey: "hoverGlow")
         defaults.set(reduceMotion, forKey: "reduceMotion")
+        defaults.set(motionMode, forKey: "motionMode")
         if let data = try? JSONEncoder().encode(quickLinks) { defaults.set(data, forKey: "quickLinks") }
         if let data = try? JSONEncoder().encode(profiles) { defaults.set(data, forKey: "profiles") }
         defaults.set(selectedCalendarIDs, forKey: "selectedCalendarIDs")
@@ -293,7 +343,7 @@ final class BarModel: ObservableObject {
     func launch(_ item: DockItem) {
         recentAppPaths.removeAll { $0 == item.id }; recentAppPaths.insert(item.id, at: 0)
         recentAppPaths = Array(recentAppPaths.prefix(12)); defaults.set(recentAppPaths, forKey: "recentAppPaths")
-        if let app = running.first(where: { $0.bundleIdentifier == item.bundleID }) { if app.activate(options: [.activateAllWindows]) { return } }
+        if let app = runningApplication(for: item) { if app.activate(options: [.activateAllWindows]) { return } }
         NSWorkspace.shared.openApplication(at: item.url, configuration: NSWorkspace.OpenConfiguration()) { _, error in
             if let error { DispatchQueue.main.async { let alert = NSAlert(error: error); alert.runModal() } }
         }

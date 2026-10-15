@@ -29,27 +29,9 @@ enum DockTheme: String, Codable, CaseIterable, Identifiable {
     }
 
     /// Gradient laid over the blur. Empty for plain themes.
-    var tint: [Color] {
-        switch self {
-        case .glass, .dark, .light: return []
-        case .aurora: return [Color(red: 0.42, green: 0.25, blue: 0.95), Color(red: 0.05, green: 0.75, blue: 0.7)]
-        case .electric: return [Color(red: 0.05, green: 0.45, blue: 1.0), Color(red: 0.95, green: 0.15, blue: 0.75)]
-        case .sunset: return [Color(red: 1.0, green: 0.45, blue: 0.2), Color(red: 0.85, green: 0.15, blue: 0.45)]
-        case .graphite: return [Color(white: 0.22), Color(white: 0.08)]
-        case .frost: return [Color(red: 0.85, green: 0.95, blue: 1.0), Color(red: 0.6, green: 0.8, blue: 1.0)]
-        }
-    }
-
-    var accent: Color {
-        switch self {
-        case .glass, .dark, .light: return .accentColor
-        case .aurora: return Color(red: 0.35, green: 0.85, blue: 0.75)
-        case .electric: return Color(red: 0.2, green: 0.6, blue: 1.0)
-        case .sunset: return Color(red: 1.0, green: 0.5, blue: 0.3)
-        case .graphite: return Color(white: 0.55)
-        case .frost: return Color(red: 0.25, green: 0.55, blue: 0.95)
-        }
-    }
+    var palette: PanelPalette { PanelPalette.resolve(self, light: isLight) }
+    var tint: [Color] { palette.gradient.map { Color(nsColor: $0) } }
+    var accent: Color { palette.accent.map { Color(nsColor: $0) } ?? .accentColor }
 
     /// Swatch used by the theme picker.
     var preview: [Color] {

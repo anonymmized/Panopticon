@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 
 /// Stable identity preserves settings, Dock recovery and macOS privacy grants
-/// across the NewMacBar → Panopticon rename. This is not a display name.
+/// across the Panopticon → Panopticon rename. This is not a display name.
 enum AppIdentity {
     static let preferencesDomain = "app.newmacbar.desktop"
 }
@@ -42,7 +42,7 @@ struct LocalizedMessage: ExpressibleByStringLiteral, ExpressibleByStringInterpol
 func L(_ message: LocalizedMessage) -> String { Localization.shared.text(message) }
 
 final class Localization: ObservableObject {
-    static let shared = Localization()
+    static var shared = Localization()
     static let didChange = Notification.Name("Panopticon.languageChanged")
     private let defaults: UserDefaults
     private let preferredLanguages: () -> [String]
@@ -55,7 +55,7 @@ final class Localization: ObservableObject {
         self.defaults = defaults; self.preferredLanguages = preferredLanguages
         language = AppLanguage(rawValue: defaults.string(forKey: "interfaceLanguage") ?? "") ?? .system
         #if SWIFT_PACKAGE
-        let bundle = Bundle.module
+        let bundle = Bundle.main.url(forResource: "en", withExtension: "json") != nil ? Bundle.main : Bundle.module
         #else
         let bundle = Bundle.main
         #endif
