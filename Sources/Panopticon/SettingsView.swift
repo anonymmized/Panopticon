@@ -7,7 +7,7 @@ struct SettingsSection: Identifiable {
     let symbol: String
     let detail: String
     let keywords: String
-    static var all: [SettingsSection] = [
+    static var all: [SettingsSection] { [
         .init(
             id: "appearance", title: L("Внешний вид"), symbol: "paintpalette",
             detail: L("Размер, стекло и движение. Изменения видны сразу."),
@@ -49,7 +49,7 @@ struct SettingsSection: Identifiable {
             id: "about", title: L("О программе"), symbol: "info.circle",
             detail: L("Panopticon · собственное пространство на Mac."),
             keywords: L("версия помощь начало onboarding компоненты")),
-    ]
+    ] }
     static func matches(_ section: SettingsSection, query: String) -> Bool {
         query.split(whereSeparator: \.isWhitespace).allSatisfy {
             (section.title + " " + section.detail + " " + section.keywords).localizedCaseInsensitiveContains(

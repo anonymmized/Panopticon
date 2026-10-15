@@ -34,6 +34,10 @@ without starting global shortcuts, system Dock replacement or session ownership.
 `--small-window` selects the minimum review size. Review both languages and appearances,
 search, editors, onboarding, long labels and accessibility feedback.
 
+`--render-review` writes isolated settings and panel fixtures to
+`build/interface-review`. It checks rendered content and language changes; native
+sidebar snapshots can be incomplete, so this does not replace a live window review.
+
 ## Distribution and recovery checks
 
 ```sh

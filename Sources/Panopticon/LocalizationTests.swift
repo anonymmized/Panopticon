@@ -40,5 +40,10 @@ func runLocalizationTests() {
     precondition(localizer.locale.identifier == "ru_RU", "Localized dates")
     precondition(localizer.text("Открыть \(name)") == "Открыть \(name)", "Russian interpolation")
     precondition(AppIdentity.preferencesDomain == "app.newmacbar.desktop", "Keep existing settings and permissions identity")
+    for (language, expected) in [(AppLanguage.english, "Appearance"), (.russian, "Внешний вид")] {
+        Localization.shared.withTemporaryLanguage(language) {
+            precondition(SettingsSection.all.first { $0.id == "appearance" }?.title == expected, "Settings navigation titles must not cache the previous language")
+        }
+    }
     print("PASS: bilingual catalogs, fallback, persistence, interpolation and stable application identity")
 }

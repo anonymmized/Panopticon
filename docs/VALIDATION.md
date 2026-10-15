@@ -9,6 +9,8 @@ preferences and generated fixtures rather than real calendar, music or file perm
 
 - Matching translation catalogs, interpolation, plural forms, fallback and persistence.
 - Model self-tests in English and Russian.
+- Settings headings updating across a language change without cached labels.
+- Isolated content rendering in both languages and appearances.
 - Pin import, closed-app persistence, missing volumes and additive imports.
 - Space switching, profile round trips, normalization and scoped mutations.
 - Hidden startup, edge dwell, click suppression, wake and overview transitions.
@@ -36,3 +38,6 @@ separate hardware and user-driven verification.
 
 Ad-hoc signing does not mean Apple notarization. Mission Control remains controlled
 by macOS and can show its own Dock; Panopticon avoids overlapping that system surface.
+
+Live computer-use review was unavailable during integration: the tool returned
+`cgWindowNotFound`. Full interactive review is not recorded as passed.
