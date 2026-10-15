@@ -70,13 +70,13 @@ func runRegressionTests(defaults: UserDefaults, model: BarModel) throws {
 
     let backup: [String: Any] = ["autohide": false, "autohide-delay": 0.3, "autohide-time-modifier": "__absent__"]
     defaults.set(backup, forKey: "systemDockBackup")
-    let failure = DockIntegration(defaults: defaults) { _, args in CommandResult(status: args.contains("autohide-delay") ? 13 : 0, output: "permission denied") }
+    let failure = DockIntegration(defaults: defaults, execute: { _, args in CommandResult(status: args.contains("autohide-delay") ? 13 : 0, output: "permission denied") })
     failure.restore(); precondition(defaults.dictionary(forKey: "systemDockBackup") != nil, "Failed restore must retain recovery backup")
-    let missing = DockIntegration(defaults: defaults) { _, args in
+    let missing = DockIntegration(defaults: defaults, execute: { _, args in
         if args.first == "delete" { return CommandResult(status: 1, output: "missing") }
         if args.first == "read" { return CommandResult(status: 1, output: "does not exist") }
         return CommandResult(status: 0, output: "")
-    }
+    })
     missing.restore(); precondition(defaults.dictionary(forKey: "systemDockBackup") == nil, "Successful restoration deletes backup")
     print("PASS: geometry, nested updates, profile editing/import, preference recovery, shortcut editing, keyboard layouts, month boundaries, player metadata, persisted timers, Dock recovery")
 }
@@ -133,5 +133,6 @@ func runPanelSelfTests() {
         }
     }
     runDragDropTests(bar: bar, model: model, panel: panel)
+    runWindowControllerTests()
     print("PASS: panel passthrough, re-entry, first click, glass hit-test, focus and native menu")
 }

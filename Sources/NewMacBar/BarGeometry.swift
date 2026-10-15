@@ -1,7 +1,9 @@
 import AppKit
 
 enum BarGeometry {
-    static func frames(sizes: [CGFloat], spacing: CGFloat, origin: NSPoint, scale: CGFloat, base: CGFloat, lift: CGFloat) -> [NSRect] {
+    static func frames(
+        sizes: [CGFloat], spacing: CGFloat, origin: NSPoint, scale: CGFloat, base: CGFloat, lift: CGFloat
+    ) -> [NSRect] {
         var x = origin.x
         return sizes.map { size in
             let side = size * scale
@@ -11,6 +13,9 @@ enum BarGeometry {
         }
     }
     static func nearest(_ point: NSPoint, frames: [NSRect]) -> Int? {
-        frames.indices.filter { frames[$0].insetBy(dx: -4, dy: -6).contains(point) }.min { abs(frames[$0].midX - point.x) < abs(frames[$1].midX - point.x) }
+        frames.indices.filter { frames[$0].insetBy(dx: -4, dy: -6).contains(point) }.min {
+            hypot(frames[$0].midX - point.x, frames[$0].midY - point.y)
+                < hypot(frames[$1].midX - point.x, frames[$1].midY - point.y)
+        }
     }
 }

@@ -1,103 +1,153 @@
 import AppKit
+import OSLog
 
-/// Saves exact prior preference values before changing the Dock. Restoration also
-/// works after an interrupted session because the backup lives in our own domain.
-struct CommandResult { let status: Int32; let output: String }
+struct CommandResult {
+    let status: Int32
+    let output: String
+}
 
+/// The backup is deliberately separate from normal preferences. Never export it
+/// as a user's panel configuration, overwrite it on relaunch, or discard a failed restore.
 final class DockIntegration: ObservableObject {
-    @Published var message = ""
+    @Published private(set) var message = ""
+    @Published private(set) var recoveryPending = false
+    @Published private(set) var isReplacing = false
     private let defaults: UserDefaults
     private let execute: (String, [String]) -> CommandResult
+    private let readDomain: () -> [String: Any]
     private let backupKey = "systemDockBackup"
-    private let keys = ["autohide", "autohide-delay", "autohide-time-modifier"]
-    init(defaults: UserDefaults = .standard, execute: @escaping (String, [String]) -> CommandResult = DockIntegration.command) {
-        self.defaults = defaults; self.execute = execute
+    private static let keys = ["autohide", "autohide-delay", "autohide-time-modifier"]
+    private static let log = Logger(subsystem: "app.newmacbar.desktop", category: "SystemDock")
+
+    init(
+        defaults: UserDefaults = .standard,
+        readDomain: @escaping () -> [String: Any] = {
+            UserDefaults.standard.persistentDomain(forName: "com.apple.dock") ?? [:]
+        },
+        execute: @escaping (String, [String]) -> CommandResult = DockIntegration.command
+    ) {
+        self.defaults = defaults
+        self.execute = execute
+        self.readDomain = readDomain
     }
+    var hasBackup: Bool { defaults.object(forKey: backupKey) != nil }
     static func command(_ executable: String, _ args: [String]) -> CommandResult {
-        let process = Process(); process.executableURL = URL(fileURLWithPath: executable); process.arguments = args
-        var environment = ProcessInfo.processInfo.environment; environment["LC_ALL"] = "C"; process.environment = environment
-        let pipe = Pipe(); process.standardOutput = pipe; process.standardError = pipe
-        do { try process.run(); let data = pipe.fileHandleForReading.readDataToEndOfFile(); process.waitUntilExit(); return CommandResult(status: process.terminationStatus, output: String(data: data, encoding: .utf8) ?? "") }
-        catch { return CommandResult(status: -1, output: error.localizedDescription) }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = args
+        var environment = ProcessInfo.processInfo.environment
+        environment["LC_ALL"] = "C"
+        process.environment = environment
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        do {
+            try process.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            return CommandResult(
+                status: process.terminationStatus, output: String(data: data, encoding: .utf8) ?? "")
+        } catch { return CommandResult(status: -1, output: error.localizedDescription) }
     }
-    func enable() {
-        if defaults.dictionary(forKey: backupKey) == nil {
-            let domain = UserDefaults.standard.persistentDomain(forName: "com.apple.dock") ?? [:]
-            var backup: [String: Any] = [:]
-            for key in keys { backup[key] = domain[key] ?? "__absent__" }
-            defaults.set(backup, forKey: backupKey); defaults.synchronize()
+    private func valid(_ backup: [String: Any]) -> Bool {
+        guard Set(backup.keys) == Set(Self.keys) else { return false }
+        return Self.keys.allSatisfy { key in
+            if let string = backup[key] as? String { return string == "__absent__" }
+            guard let number = backup[key] as? NSNumber, number.doubleValue.isFinite else { return false }
+            return key != "autohide" || number.doubleValue == 0 || number.doubleValue == 1
         }
-        let ok = execute("/usr/bin/defaults", ["write", "com.apple.dock", "autohide", "-bool", "true"]).status == 0
-            && execute("/usr/bin/defaults", ["write", "com.apple.dock", "autohide-delay", "-float", "3600"]).status == 0
-            && execute("/usr/bin/defaults", ["write", "com.apple.dock", "autohide-time-modifier", "-float", "0"]).status == 0
-        if ok { _ = execute("/usr/bin/killall", ["Dock"]); message = "Dock скрыт на рабочем столе. В Mission Control видна системная панель macOS." }
-        else { restore(); message = "Не удалось скрыть Dock. Исходные настройки сохранены для восстановления." }
     }
-    func restore() {
-        guard let backup = defaults.dictionary(forKey: backupKey) else { return }
+    func prepareRecovery() {
+        guard hasBackup else { return }
+        recoveryPending = true
+        message =
+            "Предыдущая сессия оставила копию настроек Dock. Верни системный Dock или продолжи использовать NewMacBar."
+    }
+    @discardableResult func enable() -> Bool {
+        if !hasBackup {
+            let domain = readDomain()
+            let backup = Dictionary(uniqueKeysWithValues: Self.keys.map { ($0, domain[$0] ?? "__absent__") })
+            guard valid(backup) else {
+                message = "Настройки системного Dock имеют неподдерживаемый формат. Изменения не внесены."
+                return false
+            }
+            defaults.set(backup, forKey: backupKey)
+            defaults.synchronize()
+        }
+        guard let backup = defaults.dictionary(forKey: backupKey), valid(backup) else {
+            message = "Копия настроек Dock повреждена. Она сохранена; автоматическое изменение остановлено."
+            Self.log.error("Invalid Dock recovery backup; no system preferences changed")
+            return false
+        }
+        guard defaults.synchronize() else {
+            message = "Не удалось сохранить копию настроек Dock. Системный Dock не изменён."
+            Self.log.error("Could not persist Dock backup; replacement skipped")
+            return false
+        }
+        recoveryPending = false
+        let ok =
+            execute("/usr/bin/defaults", ["write", "com.apple.dock", "autohide", "-bool", "true"]).status == 0
+            && execute("/usr/bin/defaults", ["write", "com.apple.dock", "autohide-delay", "-float", "3600"])
+                .status == 0
+            && execute(
+                "/usr/bin/defaults", ["write", "com.apple.dock", "autohide-time-modifier", "-float", "0"]
+            ).status == 0
+        if ok {
+            isReplacing = true
+            _ = execute("/usr/bin/killall", ["Dock"])
+            message = "На рабочем столе работает NewMacBar. В Mission Control новая панель скрывается и уступает место системному Dock."
+        } else {
+            _ = restore()
+            message =
+                hasBackup
+                ? "Не удалось скрыть Dock. Копия сохранена; повтори восстановление."
+                : "Не удалось скрыть Dock. Исходные настройки восстановлены."
+            Self.log.error("Dock replacement failed; attempted rollback")
+        }
+        return ok
+    }
+    @discardableResult func restore() -> Bool {
+        guard hasBackup else {
+            recoveryPending = false
+            isReplacing = false
+            return true
+        }
+        guard let backup = defaults.dictionary(forKey: backupKey), valid(backup) else {
+            message = "Копия настроек Dock повреждена. Она сохранена; восстановление остановлено."
+            Self.log.error("Invalid Dock backup; restore skipped")
+            return false
+        }
         var success = true
-        for key in keys {
-            guard let value = backup[key] else { success = false; continue }
+        for key in Self.keys {
+            let value = backup[key]!
             if let string = value as? String, string == "__absent__" {
                 let removed = execute("/usr/bin/defaults", ["delete", "com.apple.dock", key])
                 if removed.status != 0 {
                     let check = execute("/usr/bin/defaults", ["read", "com.apple.dock", key])
                     success = (check.status == 1 && check.output.contains("does not exist")) && success
                 }
-            } else if key == "autohide" {
-                success = (execute("/usr/bin/defaults", ["write", "com.apple.dock", key, "-bool", (value as? NSNumber)?.boolValue == true ? "true" : "false"]).status == 0) && success
             } else {
-                success = (execute("/usr/bin/defaults", ["write", "com.apple.dock", key, "-float", "\(value)"]).status == 0) && success
+                let number = value as! NSNumber
+                let arguments =
+                    key == "autohide"
+                    ? ["-bool", number.boolValue ? "true" : "false"] : ["-float", number.stringValue]
+                success =
+                    (execute("/usr/bin/defaults", ["write", "com.apple.dock", key] + arguments).status == 0)
+                    && success
             }
         }
-        if success { defaults.removeObject(forKey: backupKey); defaults.synchronize() }
-        _ = execute("/usr/bin/killall", ["Dock"])
-        message = success ? "Системный Dock восстановлен." : "Восстановление не завершено. Копия прежних настроек сохранена; повтори попытку."
-    }
-}
-
-struct AppCollection: Identifiable, Codable, Equatable {
-    var id = UUID().uuidString
-    var name: String
-    var symbol = "square.grid.2x2.fill"
-    var paths: [String] = []
-    var items: [DockItem] { paths.map { DockItem(url: URL(fileURLWithPath: $0)) }.filter { $0.url.pathExtension.lowercased() == "app" && $0.bundleID != nil && FileManager.default.fileExists(atPath: $0.id) } }
-}
-
-final class FocusTimer: ObservableObject {
-    @Published var remaining: Double = 25 * 60
-    @Published var isRunning = false
-    @Published private(set) var sessionDuration: Double = 25 * 60
-    var soundEnabled = true
-    var onChange: (() -> Void)?
-    private var endDate: Date?
-    private var timer: Timer?
-    private let defaults: UserDefaults
-    init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
-        if let saved = defaults.dictionary(forKey: "focusSession") {
-            remaining = SettingsRules.number(saved["remaining"] as? Double ?? 1500, 0...5400, fallback: 1500)
-            sessionDuration = SettingsRules.number(saved["duration"] as? Double ?? 1500, 1...5400, fallback: 1500)
-            if let end = saved["end"] as? Date { remaining = SettingsRules.number(end.timeIntervalSinceNow, 0...sessionDuration, fallback: 0); endDate = Date().addingTimeInterval(remaining); isRunning = remaining > 0; if isRunning { startTicker() } else { endDate = nil; persist() } }
+        if success {
+            defaults.removeObject(forKey: backupKey)
+            defaults.synchronize()
+            recoveryPending = false
+            isReplacing = false
         }
+        _ = execute("/usr/bin/killall", ["Dock"])
+        message =
+            success
+            ? "Системный Dock восстановлен."
+            : "Восстановление не завершено. Копия сохранена; повтори попытку."
+        if !success { Self.log.error("Dock restore incomplete; retained recovery backup") }
+        return success
     }
-    deinit { timer?.invalidate() }
-    func toggle(minutes: Double) {
-        if isRunning { remaining = max(0, endDate?.timeIntervalSinceNow ?? remaining); endDate = nil; isRunning = false; timer?.invalidate(); timer = nil }
-        else { if remaining <= 0 { remaining = minutes * 60; sessionDuration = remaining }; endDate = Date().addingTimeInterval(remaining); isRunning = true; startTicker() }
-        persist(); onChange?()
-    }
-    private func startTicker() {
-        timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            guard let self, let end = self.endDate else { return }
-            self.remaining = max(0, end.timeIntervalSinceNow)
-            if self.remaining == 0 { self.endDate = nil; self.isRunning = false; self.timer?.invalidate(); self.timer = nil; self.persist(); if self.soundEnabled { NSSound(named: "Glass")?.play() } }
-            self.onChange?()
-        }; timer?.tolerance = 0.1
-    }
-    private func persist() { var state: [String: Any] = ["remaining": remaining, "duration": sessionDuration]; if let endDate { state["end"] = endDate }; defaults.set(state, forKey: "focusSession") }
-    func reset(minutes: Double) { timer?.invalidate(); timer = nil; endDate = nil; remaining = minutes * 60; sessionDuration = remaining; isRunning = false; persist(); onChange?() }
-    var progress: Double { min(1, max(0, 1 - remaining / max(sessionDuration, 1))) }
-    var text: String { let seconds = max(0, Int(ceil(remaining))); return String(format: "%02d:%02d", seconds / 60, seconds % 60) }
 }

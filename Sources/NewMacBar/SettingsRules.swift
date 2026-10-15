@@ -26,6 +26,7 @@ extension ProfileAppearance {
         if let timerMinutes = v.timerMinutes { v.timerMinutes = SettingsRules.number(timerMinutes, 5...90, fallback: 25) }
         if let clockFormat = v.clockFormat { v.clockFormat = SettingsRules.choice(clockFormat, ["12h", "24h"], fallback: "24h") }
         if let edge = v.edge { v.edge = SettingsRules.choice(edge, DockEdge.allCases.map(\.rawValue), fallback: "bottom") }
+        if let mode = v.motionMode { v.motionMode = SettingsRules.choice(mode, DockMotionMode.allCases.map(\.rawValue), fallback: "system") }
         v.theme = SettingsRules.choice(v.theme, DockTheme.allCases.map(\.rawValue), fallback: "dark")
         v.accent = SettingsRules.choice(v.accent, ["violet", "blue", "cyan", "mint", "orange", "rose", "neutral"], fallback: "violet")
         v.hover = SettingsRules.choice(v.hover, ["none", "lift", "scale"], fallback: "lift")
