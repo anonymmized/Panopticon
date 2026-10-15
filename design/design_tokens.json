@@ -1,0 +1,248 @@
+{
+  "$schema": "https://newmacbar.app/schemas/design-tokens-1.0.json",
+  "meta": {
+    "version": "1.0.0",
+    "baselineVersion": "0.5.0",
+    "direction": "Native Glass Tactile",
+    "minimumMacOS": "13.0",
+    "owner": "Gemini (G02)",
+    "consumers": ["Codex (X04-X11)", "Claude (C09)"]
+  },
+  "geometry": {
+    "iconSize": { "min": 28, "default": 36, "max": 60, "step": 1, "unit": "pt" },
+    "iconSpacing": { "min": 4, "default": 8, "max": 24, "step": 1, "unit": "pt" },
+    "cornerRadius": { "min": 8, "default": 20, "max": 30, "step": 1, "unit": "pt" },
+    "bottomOffset": { "min": 0, "default": 4, "max": 160, "step": 1, "unit": "pt" },
+    "magnification": { "min": 1.0, "default": 1.35, "max": 1.8, "step": 0.05 },
+    "hoverLift": { "min": 0, "default": 7, "max": 16, "step": 1, "unit": "pt" },
+    "shellOpacity": { "min": 0.0, "default": 0.1, "max": 0.65, "step": 0.01 },
+    "widgetWidth": { "min": 130, "default": 158, "max": 250, "step": 2, "unit": "pt" },
+    "widgetOpacity": { "min": 0.08, "default": 0.28, "max": 0.7, "step": 0.01 },
+    "barHorizontalPadding": 12,
+    "barVerticalPadding": 8,
+    "screenEdgeMargin": 16,
+    "autoHideTriggerThickness": 4,
+    "spaceSwitcherButtonSize": 28,
+    "spaceSwitcherMaxVisibleButtons": 3,
+    "separatorThickness": 1,
+    "separatorLengthRatio": 0.58,
+    "runningIndicatorDotSize": 4,
+    "runningIndicatorDashWidth": 10,
+    "runningIndicatorDashHeight": 3,
+    "badgeMinDiameter": 16,
+    "badgeHorizontalPadding": 5,
+    "settingsWindowMinSize": { "width": 780, "height": 540 },
+    "settingsWindowDefaultSize": { "width": 880, "height": 620 },
+    "settingsSidebarWidth": 200,
+    "livePreviewHeaderHeight": 84,
+    "popovers": {
+      "calendar": { "width": 320, "height": 380, "cornerRadius": 16, "padding": 14 },
+      "music": { "width": 300, "height": 240, "cornerRadius": 16, "padding": 14 },
+      "timer": { "width": 260, "height": 210, "cornerRadius": 16, "padding": 14 },
+      "folderStack": { "width": 360, "height": 420, "cornerRadius": 16, "padding": 14 },
+      "quickLauncher": { "width": 560, "height": 380, "cornerRadius": 18, "padding": 12 },
+      "onboarding": { "width": 640, "height": 460, "cornerRadius": 18, "padding": 24 }
+    }
+  },
+  "typography": {
+    "fontFamily": {
+      "ui": "SF Pro Text, -apple-system",
+      "display": "SF Pro Display, -apple-system",
+      "rounded": "SF Pro Rounded, -apple-system",
+      "mono": "SF Mono, ui-monospace"
+    },
+    "scale": {
+      "windowTitle": { "size": 20, "weight": "semibold", "lineHeight": 26, "tracking": -0.2 },
+      "sectionHeader": { "size": 15, "weight": "semibold", "lineHeight": 20, "tracking": -0.1 },
+      "cardTitle": { "size": 13, "weight": "semibold", "lineHeight": 18, "tracking": 0.0 },
+      "body": { "size": 13, "weight": "regular", "lineHeight": 18, "tracking": 0.0 },
+      "bodyMedium": { "size": 13, "weight": "medium", "lineHeight": 18, "tracking": 0.0 },
+      "secondary": { "size": 12, "weight": "regular", "lineHeight": 16, "tracking": 0.0 },
+      "caption": { "size": 11, "weight": "medium", "lineHeight": 14, "tracking": 0.1 },
+      "badgeCount": { "size": 10, "weight": "bold", "lineHeight": 12, "tracking": 0.0, "monospacedDigits": true },
+      "widgetPrimary": { "size": 14, "weight": "semibold", "lineHeight": 17, "tracking": -0.1, "monospacedDigits": true },
+      "widgetSecondary": { "size": 11, "weight": "medium", "lineHeight": 14, "tracking": 0.0 },
+      "launcherInput": { "size": 17, "weight": "regular", "lineHeight": 22, "tracking": -0.1 }
+    },
+    "hardFloorPt": 10
+  },
+  "themes": {
+    "glass": {
+      "id": "glass",
+      "titleRU": "Стекло",
+      "titleEN": "Glass",
+      "appearance": "system",
+      "material": "hudWindow",
+      "tintGradient": [],
+      "textScrimDark": "rgba(14, 16, 22, 0.42)",
+      "textScrimLight": "rgba(255, 255, 255, 0.58)",
+      "borderOuterDark": "rgba(255, 255, 255, 0.16)",
+      "borderOuterLight": "rgba(0, 0, 0, 0.12)",
+      "innerRimDark": "rgba(255, 255, 255, 0.22)",
+      "innerRimLight": "rgba(255, 255, 255, 0.72)",
+      "reduceTransparencyFallbackDark": "#1C1E24",
+      "reduceTransparencyFallbackLight": "#F2F4F8",
+      "defaultAccent": "systemAccent"
+    },
+    "dark": {
+      "id": "dark",
+      "titleRU": "Тёмная",
+      "titleEN": "Dark",
+      "appearance": "darkAqua",
+      "material": "hudWindow",
+      "tintGradient": ["rgba(28, 30, 36, 0.76)", "rgba(16, 18, 22, 0.88)"],
+      "textScrim": "rgba(10, 12, 16, 0.48)",
+      "borderOuter": "rgba(255, 255, 255, 0.14)",
+      "innerRim": "rgba(255, 255, 255, 0.18)",
+      "reduceTransparencyFallback": "#16181D",
+      "defaultAccent": "systemAccent"
+    },
+    "light": {
+      "id": "light",
+      "titleRU": "Светлая",
+      "titleEN": "Light",
+      "appearance": "aqua",
+      "material": "menu",
+      "tintGradient": ["rgba(250, 251, 253, 0.80)", "rgba(232, 236, 242, 0.88)"],
+      "textScrim": "rgba(255, 255, 255, 0.64)",
+      "borderOuter": "rgba(0, 0, 0, 0.12)",
+      "innerRim": "rgba(255, 255, 255, 0.85)",
+      "reduceTransparencyFallback": "#F4F6FA",
+      "defaultAccent": "systemAccent"
+    },
+    "aurora": {
+      "id": "aurora",
+      "titleRU": "Aurora",
+      "titleEN": "Aurora",
+      "appearance": "darkAqua",
+      "material": "hudWindow",
+      "tintGradient": ["rgba(107, 64, 242, 0.62)", "rgba(13, 191, 179, 0.58)"],
+      "textScrim": "rgba(12, 16, 28, 0.56)",
+      "borderOuter": "rgba(89, 217, 191, 0.28)",
+      "innerRim": "rgba(255, 255, 255, 0.24)",
+      "reduceTransparencyFallback": "#1A2234",
+      "defaultAccent": "#59D9BF"
+    },
+    "electric": {
+      "id": "electric",
+      "titleRU": "Electric",
+      "titleEN": "Electric",
+      "appearance": "darkAqua",
+      "material": "hudWindow",
+      "tintGradient": ["rgba(13, 115, 255, 0.62)", "rgba(242, 38, 191, 0.56)"],
+      "textScrim": "rgba(12, 14, 28, 0.58)",
+      "borderOuter": "rgba(92, 168, 255, 0.30)",
+      "innerRim": "rgba(255, 255, 255, 0.24)",
+      "reduceTransparencyFallback": "#191E36",
+      "defaultAccent": "#5CA8FF"
+    },
+    "sunset": {
+      "id": "sunset",
+      "titleRU": "Sunset",
+      "titleEN": "Sunset",
+      "appearance": "darkAqua",
+      "material": "hudWindow",
+      "tintGradient": ["rgba(255, 115, 51, 0.60)", "rgba(217, 38, 115, 0.58)"],
+      "textScrim": "rgba(26, 12, 20, 0.58)",
+      "borderOuter": "rgba(255, 148, 102, 0.28)",
+      "innerRim": "rgba(255, 255, 255, 0.22)",
+      "reduceTransparencyFallback": "#2B1822",
+      "defaultAccent": "#FF9466"
+    },
+    "graphite": {
+      "id": "graphite",
+      "titleRU": "Graphite",
+      "titleEN": "Graphite",
+      "appearance": "darkAqua",
+      "material": "hudWindow",
+      "tintGradient": ["rgba(56, 58, 64, 0.82)", "rgba(20, 22, 26, 0.90)"],
+      "textScrim": "rgba(14, 15, 18, 0.50)",
+      "borderOuter": "rgba(255, 255, 255, 0.18)",
+      "innerRim": "rgba(255, 255, 255, 0.20)",
+      "reduceTransparencyFallback": "#202227",
+      "defaultAccent": "#C7CDD6"
+    },
+    "frost": {
+      "id": "frost",
+      "titleRU": "Frost",
+      "titleEN": "Frost",
+      "appearance": "aqua",
+      "material": "menu",
+      "tintGradient": ["rgba(217, 242, 255, 0.78)", "rgba(153, 204, 255, 0.72)"],
+      "textScrim": "rgba(255, 255, 255, 0.68)",
+      "borderOuter": "rgba(38, 115, 217, 0.20)",
+      "innerRim": "rgba(255, 255, 255, 0.88)",
+      "reduceTransparencyFallback": "#EBF4FC",
+      "defaultAccent": "#1F6FEB"
+    }
+  },
+  "accents": {
+    "violet": { "dark": "#9B7BFF", "light": "#6938EF", "tintBgDark": "rgba(155, 123, 255, 0.18)", "tintBgLight": "rgba(105, 56, 239, 0.12)" },
+    "blue": { "dark": "#58A6FF", "light": "#0969DA", "tintBgDark": "rgba(88, 166, 255, 0.18)", "tintBgLight": "rgba(9, 105, 218, 0.12)" },
+    "cyan": { "dark": "#39D0D8", "light": "#087EA4", "tintBgDark": "rgba(57, 208, 216, 0.18)", "tintBgLight": "rgba(8, 126, 164, 0.12)" },
+    "mint": { "dark": "#3FB984", "light": "#117A50", "tintBgDark": "rgba(63, 185, 132, 0.18)", "tintBgLight": "rgba(17, 122, 80, 0.12)" },
+    "orange": { "dark": "#FF984F", "light": "#C45100", "tintBgDark": "rgba(255, 152, 79, 0.18)", "tintBgLight": "rgba(196, 81, 0, 0.12)" },
+    "rose": { "dark": "#FF6B9D", "light": "#BF1E56", "tintBgDark": "rgba(255, 107, 157, 0.18)", "tintBgLight": "rgba(191, 30, 86, 0.12)" },
+    "neutral": { "dark": "#D0D7DE", "light": "#424A53", "tintBgDark": "rgba(208, 215, 222, 0.16)", "tintBgLight": "rgba(66, 74, 83, 0.12)" }
+  },
+  "semanticColors": {
+    "dark": {
+      "textPrimary": "#F5F7FA",
+      "textSecondary": "#B8C0CC",
+      "textMuted": "#8590A2",
+      "surfaceCard": "rgba(255, 255, 255, 0.07)",
+      "surfaceCardHover": "rgba(255, 255, 255, 0.11)",
+      "surfaceCardPressed": "rgba(255, 255, 255, 0.15)",
+      "borderSubtle": "rgba(255, 255, 255, 0.10)",
+      "borderFocus": "#58A6FF",
+      "statusSuccess": "#3FB950",
+      "statusWarning": "#E3B341",
+      "statusDanger": "#F85149",
+      "badgeNotificationBg": "#E53935",
+      "badgeNotificationText": "#FFFFFF"
+    },
+    "light": {
+      "textPrimary": "#11151C",
+      "textSecondary": "#424A55",
+      "textMuted": "#656D78",
+      "surfaceCard": "rgba(0, 0, 0, 0.04)",
+      "surfaceCardHover": "rgba(0, 0, 0, 0.07)",
+      "surfaceCardPressed": "rgba(0, 0, 0, 0.10)",
+      "borderSubtle": "rgba(0, 0, 0, 0.10)",
+      "borderFocus": "#0969DA",
+      "statusSuccess": "#1A7F37",
+      "statusWarning": "#9A6700",
+      "statusDanger": "#CF222E",
+      "badgeNotificationBg": "#D32F2F",
+      "badgeNotificationText": "#FFFFFF"
+    }
+  },
+  "motion": {
+    "hoverMagnification": { "response": 0.18, "dampingFraction": 0.78, "reduceMotion": "instantHighlightOnly" },
+    "iconPress": { "scale": 0.92, "durationMs": 90, "reduceMotionScale": 0.98 },
+    "appLaunchBounce": { "heightPt": 12, "durationMs": 420, "reduceMotion": "opacityPulse200ms" },
+    "spaceSwitch": { "durationMs": 140, "curve": "easeOutCubic", "reduceMotionDurationMs": 0 },
+    "autoHideShow": { "durationMs": 180, "curve": "easeOutQuart", "reduceMotionDurationMs": 80 },
+    "autoHideDismiss": { "durationMs": 220, "delayMs": 280, "curve": "easeInOutQuad", "reduceMotionDurationMs": 80 },
+    "popoverOpen": { "durationMs": 140, "scaleFrom": 0.96, "reduceMotionScaleFrom": 1.0 }
+  },
+  "accessibilityOverrides": {
+    "reduceMotion": {
+      "disableMagnificationNeighborDisplacement": true,
+      "disableLaunchBounce": true,
+      "disableRunningTextMarquee": true,
+      "useCrossfadeForAutoHide": true
+    },
+    "reduceTransparency": {
+      "disableVisualEffectBlur": true,
+      "useOpaqueThemeFallbackSurface": true,
+      "widgetCardMinOpacity": 0.94
+    },
+    "increaseContrast": {
+      "borderOuterWidthPt": 1.5,
+      "borderOuterOpacityBoost": 0.35,
+      "focusRingWidthPt": 2.5,
+      "secondaryTextUsePrimaryColor": true
+    }
+  }
+}
