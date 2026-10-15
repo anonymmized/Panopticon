@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 
 struct FolderStackView: View {
+    @ObservedObject private var localization = Localization.shared
     let folder: URL
     @State private var files: [URL] = []
     @State private var query = ""
@@ -14,12 +15,12 @@ struct FolderStackView: View {
                 Image(systemName: "folder.fill").foregroundStyle(.mint)
                 Text(FileManager.default.displayName(atPath: folder.path)).font(.system(size: 16, weight: .semibold)).lineLimit(1)
                 Spacer()
-                Button("В Finder") { NSWorkspace.shared.open(folder) }.font(.system(size: 10))
+                Button(L("В Finder")) { NSWorkspace.shared.open(folder) }.font(.system(size: 10))
             }
-            TextField("Найти в папке", text: $query).textFieldStyle(.roundedBorder)
+            TextField(L("Найти в папке"), text: $query).textFieldStyle(.roundedBorder)
             if loading { ProgressView().frame(maxWidth: .infinity) }
-            else if !message.isEmpty { Text(message).font(.system(size: 11)).foregroundStyle(.secondary) }
-            else if visible.isEmpty { Text(query.isEmpty ? "Папка пуста" : "Ничего не найдено").font(.system(size: 11)).foregroundStyle(.secondary) }
+            else if !message.isEmpty { Text(localization.status(message)).font(.system(size: 11)).foregroundStyle(.secondary) }
+            else if visible.isEmpty { Text(query.isEmpty ? L("Папка пуста") : L("Ничего не найдено")).font(.system(size: 11)).foregroundStyle(.secondary) }
             ScrollView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 80))], spacing: 16) {
                     ForEach(visible, id: \.self) { url in
@@ -32,7 +33,7 @@ struct FolderStackView: View {
                     }
                 }
             }
-            Text("\(files.count) элементов · скрытые файлы не показаны").font(.system(size: 9)).foregroundStyle(.secondary)
+            Text(L("\(files.count) элементов · скрытые файлы не показаны")).font(.system(size: 9)).foregroundStyle(.secondary)
         }.padding(20).frame(width: 370, height: 410)
             .background(Color(red: 0.085, green: 0.085, blue: 0.11)).preferredColorScheme(.dark)
             .task {
@@ -40,7 +41,7 @@ struct FolderStackView: View {
                     do {
                         let urls = try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.contentModificationDateKey], options: .skipsHiddenFiles)
                         return (Array(urls.sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }.prefix(500)), "")
-                    } catch { return ([], "Не удалось прочитать папку. Открой её в Finder и проверь доступ.") }
+                    } catch { return ([], L("Не удалось прочитать папку. Открой её в Finder и проверь доступ.")) }
                 }.value
                 guard !Task.isCancelled else { return }; files = result.files; message = result.message; loading = false
             }

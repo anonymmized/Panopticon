@@ -86,10 +86,10 @@ final class BarView: NSView, NSDraggingSource {
         glass.wantsLayer = true; glass.layer?.cornerRadius = 24; glass.layer?.masksToBounds = true
         surfaceTint.startPoint = CGPoint(x: 0, y: 0); surfaceTint.endPoint = CGPoint(x: 1, y: 1)
         glass.layer?.addSublayer(surfaceTint)
-        registerForDraggedTypes([.fileURL, .URL, NSPasteboard.PasteboardType("app.newmacbar.item")])
+        registerForDraggedTypes([.fileURL, .URL, NSPasteboard.PasteboardType("app.panopticon.item")])
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
-        setAccessibilityLabel("NewMacBar — панель приложений")
+        setAccessibilityLabel(L("Panopticon — панель приложений"))
 
     }
     required init?(coder: NSCoder) { fatalError() }
@@ -104,6 +104,7 @@ final class BarView: NSView, NSDraggingSource {
     override func mouseEntered(with event: NSEvent) { mouseMoved(with: event) }
     override func mouseExited(with event: NSEvent) { pointer = nil; startAnimation(); needsDisplay = true }
     func refresh() {
+        setAccessibilityLabel(L("Panopticon — панель приложений"))
         glass.appearance = model.dockTheme.appearance ?? NSApp.effectiveAppearance
         appearance = model.dockTheme.appearance ?? NSApp.effectiveAppearance
         let ids = model.items.map(\.id)
@@ -117,7 +118,7 @@ final class BarView: NSView, NSDraggingSource {
         for (index, item) in model.items.enumerated() where index < frames.count {
             let element = BarAccessibilityButton()
             element.setAccessibilityRole(.button); element.setAccessibilityEnabled(true)
-            element.setAccessibilityLabel(item.name + (model.isRunning(item) ? " — запущено" : ""))
+            element.setAccessibilityLabel(item.name + (model.isRunning(item) ? L(" — запущено") : ""))
             element.setAccessibilityParent(self)
             element.setAccessibilityFrame(window?.convertToScreen(convert(frames[index], to: nil)) ?? frames[index])
             element.frameProvider = { [weak self] in guard let self, index < self.frames.count else { return .zero }; return self.screenRect(self.frames[index]) }
@@ -125,7 +126,7 @@ final class BarView: NSView, NSDraggingSource {
             elements.append(element)
         }
         let settings = BarAccessibilityButton()
-        settings.setAccessibilityRole(.button); settings.setAccessibilityEnabled(true); settings.setAccessibilityLabel("Настройки NewMacBar")
+        settings.setAccessibilityRole(.button); settings.setAccessibilityEnabled(true); settings.setAccessibilityLabel(L("Настройки Panopticon"))
         settings.setAccessibilityParent(self)
         settings.setAccessibilityFrame(window?.convertToScreen(convert(settingsRect, to: nil)) ?? settingsRect)
         settings.frameProvider = { [weak self] in guard let self else { return .zero }; return self.screenRect(self.settingsRect) }
@@ -133,7 +134,7 @@ final class BarView: NSView, NSDraggingSource {
         if model.showSettingsButton { elements.append(settings) }
         for (index, collection) in model.collections.enumerated() where index < collectionFrames.count {
             let element = BarAccessibilityButton(); element.setAccessibilityRole(.button); element.setAccessibilityEnabled(true)
-            element.setAccessibilityLabel("Коллекция " + collection.name); element.setAccessibilityParent(self)
+            element.setAccessibilityLabel(L("Коллекция ") + collection.name); element.setAccessibilityParent(self)
             element.setAccessibilityFrame(window?.convertToScreen(convert(collectionFrames[index], to: nil)) ?? collectionFrames[index])
             element.frameProvider = { [weak self] in guard let self, index < self.collectionFrames.count else { return .zero }; return self.screenRect(self.collectionFrames[index]) }
             element.press = { [weak self] in guard let self else { return }; self.openCollection?(collection, self.collectionFrames[index]) }
@@ -151,7 +152,7 @@ final class BarView: NSView, NSDraggingSource {
         }
         for (kind, rect) in zip(model.widgetKinds, widgetFrames) {
             let widget = BarAccessibilityButton(); widget.setAccessibilityRole(.button); widget.setAccessibilityEnabled(true)
-            let label = ["music": "Открыть музыкальный плеер", "clock": "Часы", "calendar": "Календарь и события", "timer": "Таймер фокуса"][kind] ?? "Виджет"
+            let label = ["music": L("Открыть музыкальный плеер"), "clock": L("Часы"), "calendar": L("Календарь и события"), "timer": L("Таймер фокуса")][kind] ?? L("Виджет")
             widget.setAccessibilityLabel(label); widget.setAccessibilityParent(self)
             widget.setAccessibilityFrame(window?.convertToScreen(convert(rect, to: nil)) ?? rect)
             widget.frameProvider = { [weak self] in guard let self, let i = self.model.widgetKinds.firstIndex(of: kind), i < self.widgetFrames.count else { return .zero }; return self.screenRect(self.widgetFrames[i]) }
@@ -159,14 +160,14 @@ final class BarView: NSView, NSDraggingSource {
         }
         for (index, space) in model.spaces.enumerated() where index < spaceFrames.count {
             let element = BarAccessibilityButton(); element.setAccessibilityRole(.button); element.setAccessibilityEnabled(true)
-            element.setAccessibilityLabel("Пространство " + space.name + (space.id == model.selectedSpaceID ? " — выбрано" : ""))
+            element.setAccessibilityLabel(L("Пространство ") + space.name + (space.id == model.selectedSpaceID ? L(" — выбрано") : ""))
             element.setAccessibilityParent(self)
             element.frameProvider = { [weak self] in guard let self, index < self.spaceFrames.count else { return .zero }; return self.screenRect(self.spaceFrames[index]) }
             element.press = { [weak self] in self?.model.selectSpace(space.id) }; elements.append(element)
         }
         if model.showTrash {
             let trash = BarAccessibilityButton(); trash.setAccessibilityRole(.button); trash.setAccessibilityEnabled(true)
-            trash.setAccessibilityLabel("Корзина"); trash.setAccessibilityParent(self)
+            trash.setAccessibilityLabel(L("Корзина")); trash.setAccessibilityParent(self)
             trash.frameProvider = { [weak self] in guard let self else { return .zero }; return self.screenRect(self.trashRect) }
             trash.press = { NSWorkspace.shared.open(BarModel.trashURL) }; elements.append(trash)
         }
@@ -368,7 +369,7 @@ final class BarView: NSView, NSDraggingSource {
                 if let image = music.artwork { NSGraphicsContext.saveGraphicsState(); NSBezierPath(roundedRect: r.insetBy(dx: 3, dy: 3), xRadius: 8, yRadius: 8).addClip(); image.draw(in: r.insetBy(dx: 3, dy: 3)); NSGraphicsContext.restoreGraphicsState() }
                 else { drawSymbol("music.note", in: r.insetBy(dx: 10, dy: 10), color: foreground) }
             } else if kind == "calendar" {
-                let f = DateFormatter(); f.locale = Locale(identifier: "ru_RU"); f.dateFormat = "MMM"
+                let f = DateFormatter(); f.locale = Localization.shared.locale; f.dateFormat = "MMM"
                 drawText(f.string(from: Date()).uppercased(), in: NSRect(x: r.minX + 6, y: r.maxY - 12, width: r.width - 8, height: 9), font: .systemFont(ofSize: 6.5, weight: .bold), color: foreground.withAlphaComponent(0.6))
                 f.dateFormat = "d"; drawText(f.string(from: Date()), in: NSRect(x: r.minX + 9, y: r.minY + 4, width: r.width - 12, height: 25), font: .systemFont(ofSize: 21, weight: .semibold), color: foreground)
             } else if kind == "timer" {
@@ -383,21 +384,21 @@ final class BarView: NSView, NSDraggingSource {
             return
         }
         if kind == "calendar" {
-            let f = DateFormatter(); f.locale = Locale(identifier: "ru_RU"); f.dateFormat = "d"
+            let f = DateFormatter(); f.locale = Localization.shared.locale; f.dateFormat = "d"
             drawText(f.string(from: Date()), in: NSRect(x: r.minX + 10, y: r.minY + 4, width: 30, height: 28), font: .systemFont(ofSize: 25, weight: .semibold), color: foreground)
             let next = agenda.nextEvent
-            drawText(next?.title ?? "Твой календарь", in: NSRect(x: r.minX + 46, y: r.midY, width: r.width - 52, height: 15), font: .systemFont(ofSize: 9, weight: .semibold), color: foreground)
+            drawText(next?.title ?? L("Твой календарь"), in: NSRect(x: r.minX + 46, y: r.midY, width: r.width - 52, height: 15), font: .systemFont(ofSize: 9, weight: .semibold), color: foreground)
             f.dateFormat = "EEE, d MMM"
             drawText(next.map { $0.time + " · " + $0.calendar } ?? f.string(from: Date()), in: NSRect(x: r.minX + 46, y: r.minY + 6, width: r.width - 52, height: 12), font: .systemFont(ofSize: 7.5), color: foreground.withAlphaComponent(0.6))
         } else if kind == "clock" {
             let time = DateFormatter(); time.dateFormat = (model.clockFormat == "12h" ? "h:mm" : "HH:mm") + (model.clockSeconds ? ":ss" : "") + (model.clockFormat == "12h" ? " a" : "")
-            let date = DateFormatter(); date.locale = Locale(identifier: "ru_RU"); date.dateFormat = "EEEE, d MMM"
+            let date = DateFormatter(); date.locale = Localization.shared.locale; date.setLocalizedDateFormatFromTemplate("EEEEdMMM")
             drawText(time.string(from: Date()), in: NSRect(x: r.minX + 13, y: r.midY - 1, width: r.width - 22, height: 21), font: .monospacedDigitSystemFont(ofSize: model.clockSeconds ? 16 : 18, weight: .semibold), color: foreground)
             drawText(date.string(from: Date()).capitalized, in: NSRect(x: r.minX + 13, y: r.minY + 5, width: r.width - 18, height: 12), font: .systemFont(ofSize: 8.5, weight: .medium), color: foreground.withAlphaComponent(0.6))
         } else if kind == "timer" {
             drawSymbol(focus.isRunning ? "pause.circle.fill" : "play.circle.fill", in: NSRect(x: r.minX + 11, y: r.midY - 11, width: 22, height: 22), color: foreground)
             drawText(focus.text, in: NSRect(x: r.minX + 43, y: r.midY - 1, width: r.width - 48, height: 20), font: .monospacedDigitSystemFont(ofSize: 18, weight: .semibold), color: foreground)
-            drawText(focus.isRunning ? "Время для фокуса" : "Нажми, чтобы начать", in: NSRect(x: r.minX + 43, y: r.minY + 5, width: r.width - 48, height: 12), font: .systemFont(ofSize: 8), color: foreground.withAlphaComponent(0.6))
+            drawText(focus.isRunning ? L("Время для фокуса") : L("Нажми, чтобы начать"), in: NSRect(x: r.minX + 43, y: r.minY + 5, width: r.width - 48, height: 12), font: .systemFont(ofSize: 8), color: foreground.withAlphaComponent(0.6))
         } else {
             let art = NSRect(x: r.minX + 6, y: r.minY + 6, width: r.height - 12, height: r.height - 12)
             if let image = music.artwork { NSGraphicsContext.saveGraphicsState(); NSBezierPath(roundedRect: art, xRadius: 7, yRadius: 7).addClip(); image.draw(in: art); NSGraphicsContext.restoreGraphicsState() }
@@ -468,7 +469,7 @@ final class BarView: NSView, NSDraggingSource {
         guard hypot(point.x - downPoint.x, point.y - downPoint.y) > 5, draggedID == nil else { return }
         let item = model.items[index]
         guard model.pinned.contains(item) else { return }
-        let pasteboard = NSPasteboardItem(); pasteboard.setString(item.id, forType: NSPasteboard.PasteboardType("app.newmacbar.item"))
+        let pasteboard = NSPasteboardItem(); pasteboard.setString(item.id, forType: NSPasteboard.PasteboardType("app.panopticon.item"))
         let drag = NSDraggingItem(pasteboardWriter: pasteboard)
         drag.setDraggingFrame(frames[index], contents: item.icon)
         draggedID = item.id; pointer = nil
@@ -479,7 +480,7 @@ final class BarView: NSView, NSDraggingSource {
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation { draggingUpdated(sender) }
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
         let point = convert(sender.draggingLocation, from: nil)
-        let internalDrag = sender.draggingPasteboard.string(forType: NSPasteboard.PasteboardType("app.newmacbar.item")) != nil
+        let internalDrag = sender.draggingPasteboard.string(forType: NSPasteboard.PasteboardType("app.panopticon.item")) != nil
         let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [:]) as? [URL] ?? []
         if (model.showTrash && trashRect.contains(point)) || spaceFrames.contains(where: { $0.contains(point) }) { insertion = nil; dropTarget = nil; return internalDrag ? .move : .copy }
         if !internalDrag && urls.contains(where: { $0.pathExtension.lowercased() != "app" }), let index = hitItem(point) {
@@ -495,7 +496,7 @@ final class BarView: NSView, NSDraggingSource {
         let point = convert(sender.draggingLocation, from: nil)
         let boundary = insertion ?? model.pinned.count
         defer { insertion = nil; dropTarget = nil; needsDisplay = true }
-        if let id = sender.draggingPasteboard.string(forType: NSPasteboard.PasteboardType("app.newmacbar.item")), let item = model.pinned.first(where: { $0.id == id }) {
+        if let id = sender.draggingPasteboard.string(forType: NSPasteboard.PasteboardType("app.panopticon.item")), let item = model.pinned.first(where: { $0.id == id }) {
             if model.showTrash && trashRect.contains(point) { model.remove(item) }
             else if let index = spaceFrames.firstIndex(where: { $0.contains(point) }), index < model.spaces.count { model.moveApp(item, toSpace: model.spaces[index].id) }
             else { model.move(id, to: boundary) }; return true
@@ -516,7 +517,7 @@ final class BarView: NSView, NSDraggingSource {
         }
         var accepted = false
         for (offset, url) in urls.enumerated() {
-            if !url.isFileURL { accepted = model.addQuickLink(name: url.host ?? "Сайт", kind: "web", destination: url.absoluteString) || accepted; continue }
+            if !url.isFileURL { accepted = model.addQuickLink(name: url.host ?? L("Сайт"), kind: "web", destination: url.absoluteString) || accepted; continue }
             if url.pathExtension.lowercased() == "app" {
                 let before = model.pinned.count; model.add(url, at: boundary + offset)
                 accepted = model.pinned.count != before || accepted
@@ -542,8 +543,8 @@ final class BarView: NSView, NSDraggingSource {
         let point = convert(event.locationInWindow, from: nil)
         if let index = spaceFrames.firstIndex(where: { $0.contains(point) }), index < model.spaces.count { return spaceMenu(model.spaces[index]) }
         if model.showTrash && trashRect.contains(point) {
-            menu.addItem(ActionMenuItem("Открыть Корзину") { NSWorkspace.shared.open(BarModel.trashURL) })
-            menu.addItem(ActionMenuItem("Очистить Корзину…") { DispatchQueue.main.async { TrashActions.confirmEmpty() } }); return menu
+            menu.addItem(ActionMenuItem(L("Открыть Корзину")) { NSWorkspace.shared.open(BarModel.trashURL) })
+            menu.addItem(ActionMenuItem(L("Очистить Корзину…")) { DispatchQueue.main.async { TrashActions.confirmEmpty() } }); return menu
         }
         if let index = hitItem(point), index < model.items.count {
             let item = model.items[index]
@@ -556,34 +557,34 @@ final class BarView: NSView, NSDraggingSource {
                 for space in model.spaces where space.id != model.selectedSpaceID {
                     spaces.addItem(ActionMenuItem(space.name) { [weak self] in self?.model.moveApp(item, toSpace: space.id) })
                 }
-                let entry = NSMenuItem(title: "Переместить в пространство", action: nil, keyEquivalent: ""); entry.submenu = spaces; menu.addItem(entry)
+                let entry = NSMenuItem(title: L("Переместить в пространство"), action: nil, keyEquivalent: ""); entry.submenu = spaces; menu.addItem(entry)
             }
             addMenu(menu, item.name, #selector(openItem(_:)), item)
-            addMenu(menu, model.pinned.contains(item) ? "Убрать из закреплённых" : "Закрепить в панели", #selector(pinItem(_:)), item)
-            addMenu(menu, "Показать в Finder", #selector(revealItem(_:)), item)
+            addMenu(menu, model.pinned.contains(item) ? L("Убрать из закреплённых") : L("Закрепить в панели"), #selector(pinItem(_:)), item)
+            addMenu(menu, L("Показать в Finder"), #selector(revealItem(_:)), item)
             if model.isRunning(item), item.bundleID != "com.apple.finder" {
-                addMenu(menu, "Скрыть / показать приложение", #selector(hideItem(_:)), item)
-                addMenu(menu, "Завершить приложение", #selector(quitItem(_:)), item)
-                let force = NSMenuItem(title: "Завершить принудительно", action: #selector(forceQuitItem(_:)), keyEquivalent: "")
+                addMenu(menu, L("Скрыть / показать приложение"), #selector(hideItem(_:)), item)
+                addMenu(menu, L("Завершить приложение"), #selector(quitItem(_:)), item)
+                let force = NSMenuItem(title: L("Завершить принудительно"), action: #selector(forceQuitItem(_:)), keyEquivalent: "")
                 force.target = self; force.representedObject = item; force.isAlternate = true; force.keyEquivalentModifierMask = .option
                 menu.addItem(force)
             }
             menu.addItem(.separator())
         }
-        if zip(model.widgetKinds, widgetFrames).contains(where: { $0.0 == "timer" && $0.1.contains(point) }) { addMenu(menu, "Сбросить таймер", #selector(resetTimer(_:)), nil); menu.addItem(.separator()) }
-        addMenu(menu, "Открыть выбранный календарь", #selector(calendarAction(_:)), nil)
-        addMenu(menu, "Настройки NewMacBar…", #selector(settingsAction(_:)), nil)
-        addMenu(menu, "Завершить NewMacBar", #selector(quitBar(_:)), nil)
+        if zip(model.widgetKinds, widgetFrames).contains(where: { $0.0 == "timer" && $0.1.contains(point) }) { addMenu(menu, L("Сбросить таймер"), #selector(resetTimer(_:)), nil); menu.addItem(.separator()) }
+        addMenu(menu, L("Открыть выбранный календарь"), #selector(calendarAction(_:)), nil)
+        addMenu(menu, L("Настройки Panopticon…"), #selector(settingsAction(_:)), nil)
+        addMenu(menu, L("Завершить Panopticon"), #selector(quitBar(_:)), nil)
         return menu
     }
     private func spaceMenu(_ space: BarSpace) -> NSMenu {
         let menu = NSMenu()
-        menu.addItem(ActionMenuItem("Открыть «\(space.name)»") { [weak self] in self?.model.selectSpace(space.id) })
-        menu.addItem(ActionMenuItem("Привязать к текущему рабочему столу", enabled: model.currentDesktop != nil) { [weak self] in
+        menu.addItem(ActionMenuItem(L("Открыть «\(space.name)»")) { [weak self] in self?.model.selectSpace(space.id) })
+        menu.addItem(ActionMenuItem(L("Привязать к текущему рабочему столу"), enabled: model.currentDesktop != nil) { [weak self] in
             guard let self else { return }; self.model.bindSpace(space.id, desktop: self.model.currentDesktop)
         })
-        menu.addItem(ActionMenuItem("Снять привязку", enabled: space.desktop != nil) { [weak self] in self?.model.bindSpace(space.id, desktop: nil) })
-        addMenu(menu, "Настроить пространства…", #selector(settingsAction(_:)), nil)
+        menu.addItem(ActionMenuItem(L("Снять привязку"), enabled: space.desktop != nil) { [weak self] in self?.model.bindSpace(space.id, desktop: nil) })
+        addMenu(menu, L("Настроить пространства…"), #selector(settingsAction(_:)), nil)
         return menu
     }
     private func addMenu(_ menu: NSMenu, _ title: String, _ action: Selector, _ item: DockItem?) {

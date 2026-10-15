@@ -2,10 +2,10 @@
 import PackageDescription
 
 let package = Package(
-    name: "NewMacBar",
+    name: "Panopticon",
     platforms: [.macOS(.v13)],
-    products: [.executable(name: "NewMacBar", targets: ["NewMacBar"])],
-    targets: [.executableTarget(name: "NewMacBar", linkerSettings: [
+    products: [.executable(name: "Panopticon", targets: ["Panopticon"])],
+    targets: [.executableTarget(name: "Panopticon", resources: [.process("Resources")], linkerSettings: [
         .linkedFramework("AppKit"), .linkedFramework("SwiftUI"),
         .linkedFramework("ServiceManagement"), .linkedFramework("EventKit"),
         .linkedFramework("Carbon")

@@ -48,7 +48,7 @@ enum AX {
         return (attribute(element, kAXWindowsAttribute) as? [AXUIElement] ?? []).prefix(30).compactMap { window in
             guard (attribute(window, kAXSubroleAttribute) as? String) == kAXStandardWindowSubrole else { return nil }
             let title = attribute(window, kAXTitleAttribute) as? String ?? ""
-            return Window(title: title.isEmpty ? "Без названия" : title,
+            return Window(title: title.isEmpty ? L("Без названия") : title,
                           minimized: attribute(window, kAXMinimizedAttribute) as? Bool ?? false,
                           element: window)
         }

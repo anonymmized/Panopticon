@@ -39,14 +39,14 @@ func runDragDropTests(bar: BarView, model: BarModel, panel: NSWindow) {
                  "External folder pasteboard adds stack")
     precondition(drop(URL(string: "https://example.com")!) && model.quickLinks.last?.kind == "web",
                  "External web pasteboard adds a website")
-    precondition(!drop(URL(fileURLWithPath: "/private/tmp/NewMacBar-missing-bundle.app")), "Invalid bundle drop must be rejected")
+    precondition(!drop(URL(fileURLWithPath: "/private/tmp/Panopticon-missing-bundle.app")), "Invalid bundle drop must be rejected")
     model.showTrash = true; bar.refresh()
-    let trash = (bar.accessibilityChildren() as? [BarAccessibilityButton])!.first { $0.accessibilityLabel() == "Корзина" }!
+    let trash = (bar.accessibilityChildren() as? [BarAccessibilityButton])!.first { $0.accessibilityLabel() == L("Корзина") }!
     let screen = trash.accessibilityFrame()
     let drag = TestDrag(); drag.draggingDestinationWindow = panel; drag.draggingSource = bar
     drag.draggingLocation = panel.convertPoint(fromScreen: NSPoint(x: screen.midX, y: screen.midY))
     let removed = model.pinned[0]
-    drag.draggingPasteboard.setString(removed.id, forType: NSPasteboard.PasteboardType("app.newmacbar.item"))
+    drag.draggingPasteboard.setString(removed.id, forType: NSPasteboard.PasteboardType("app.panopticon.item"))
     _ = bar.draggingEntered(drag)
     precondition(bar.performDragOperation(drag) && !model.pinned.contains(removed), "Internal trash drop removes shortcut")
     precondition(FileManager.default.fileExists(atPath: removed.id), "Internal trash drop must not delete application")

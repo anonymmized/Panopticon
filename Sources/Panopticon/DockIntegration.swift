@@ -30,8 +30,8 @@ final class DockIntegration: ObservableObject {
         let ok = execute("/usr/bin/defaults", ["write", "com.apple.dock", "autohide", "-bool", "true"]).status == 0
             && execute("/usr/bin/defaults", ["write", "com.apple.dock", "autohide-delay", "-float", "3600"]).status == 0
             && execute("/usr/bin/defaults", ["write", "com.apple.dock", "autohide-time-modifier", "-float", "0"]).status == 0
-        if ok { _ = execute("/usr/bin/killall", ["Dock"]); message = "Dock скрыт на рабочем столе. В Mission Control видна системная панель macOS." }
-        else { restore(); message = "Не удалось скрыть Dock. Исходные настройки сохранены для восстановления." }
+        if ok { _ = execute("/usr/bin/killall", ["Dock"]); message = L("Dock скрыт на рабочем столе. В Mission Control видна системная панель macOS.") }
+        else { restore(); message = L("Не удалось скрыть Dock. Исходные настройки сохранены для восстановления.") }
     }
     func restore() {
         guard let backup = defaults.dictionary(forKey: backupKey) else { return }
@@ -52,7 +52,7 @@ final class DockIntegration: ObservableObject {
         }
         if success { defaults.removeObject(forKey: backupKey); defaults.synchronize() }
         _ = execute("/usr/bin/killall", ["Dock"])
-        message = success ? "Системный Dock восстановлен." : "Восстановление не завершено. Копия прежних настроек сохранена; повтори попытку."
+        message = success ? L("Системный Dock восстановлен.") : L("Восстановление не завершено. Копия прежних настроек сохранена; повтори попытку.")
     }
 }
 

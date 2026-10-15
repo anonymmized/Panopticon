@@ -67,6 +67,6 @@ struct ProfileArchive: Codable {
     }
     enum ArchiveError: LocalizedError {
         case tooLarge, version, name
-        var errorDescription: String? { switch self { case .tooLarge: return "Файл профиля слишком большой."; case .version: return "Эта версия файла профиля не поддерживается."; case .name: return "У профиля нет названия." } }
+        var errorDescription: String? { switch self { case .tooLarge: return L("Файл профиля слишком большой."); case .version: return L("Эта версия файла профиля не поддерживается."); case .name: return L("У профиля нет названия.") } }
     }
 }

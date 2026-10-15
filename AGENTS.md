@@ -1,8 +1,8 @@
-# Общая база NewMacBar
+# Общая база Panopticon
 
-Единственное приложение находится в `Sources/NewMacBar`. Swift 5 language mode,
+Единственное приложение находится в `Sources/Panopticon`. Swift 5 language mode,
 macOS 13+, AppKit для панели и SwiftUI для настроек/поповеров. Зависимостей нет.
-Объединённая база 0.5.0 собрана из NewMacBar и ветки FreeDock. См. `docs/INTEGRATION.md`.
+Объединённая база 0.5.0 собрана из NewMacBar (теперь Panopticon) и ветки FreeDock. См. `docs/INTEGRATION.md`.
 
 ## Работа с ветками
 
@@ -15,11 +15,12 @@ macOS 13+, AppKit для панели и SwiftUI для настроек/поп�
 ## Проверка изменений
 
 ```sh
+python3 scripts/check_localizations.py
 swift build -c release
-.build/release/NewMacBar --self-test
-.build/release/NewMacBar --panel-self-test
+.build/release/Panopticon --self-test
+.build/release/Panopticon --panel-self-test
 ./build.sh
-codesign --verify --deep --strict build/NewMacBar.app
+codesign --verify --deep --strict build/Panopticon.app
 git diff --check
 ```
 

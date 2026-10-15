@@ -12,7 +12,7 @@ struct MusicSnapshot {
     var artworkData: Data?
     static func parse(_ descriptor: NSAppleEventDescriptor) -> MusicSnapshot? {
         guard descriptor.numberOfItems >= 7 else { return nil }
-        let title = descriptor.atIndex(1)?.stringValue ?? "Музыка"
+        let title = descriptor.atIndex(1)?.stringValue ?? L("Музыка")
         let artist = descriptor.atIndex(2)?.stringValue ?? ""
         let duration = SettingsRules.number(descriptor.atIndex(5)?.doubleValue ?? 0, 0...86400, fallback: 0)
         let rawPosition = descriptor.atIndex(4)?.doubleValue ?? 0
@@ -27,8 +27,8 @@ struct MusicSnapshot {
 }
 
 final class MusicController: ObservableObject {
-    @Published var title = "Музыка"
-    @Published var artist = "Открой Spotify или Music"
+    @Published var title = L("Музыка")
+    @Published var artist = L("Открой Spotify или Music")
     @Published var playing = false
     @Published var position: Double = 0
     @Published var duration: Double = 0
@@ -38,7 +38,7 @@ final class MusicController: ObservableObject {
     @Published var permissionDenied = false
     var onChange: (() -> Void)?
     var preference = "auto" { didSet { if preference != oldValue { generation = UUID(); inFlight = nil; clear(); } } }
-    private let queue = DispatchQueue(label: "NewMacBar.music")
+    private let queue = DispatchQueue(label: "Panopticon.music")
     private var generation = UUID()
     private var inFlight: UUID?
     private var artworkTask: URLSessionDataTask?
@@ -53,14 +53,21 @@ final class MusicController: ObservableObject {
         let candidates = preference == "spotify" ? ["com.spotify.client"] : (preference == "music" ? ["com.apple.Music"] : ["com.spotify.client", "com.apple.Music"])
         return candidates.first { id in apps.contains { $0.bundleIdentifier == id && !$0.isTerminated } }
     }
-    var sourceName: String { activePlayerID == "com.spotify.client" ? "SPOTIFY" : (activePlayerID == "com.apple.Music" ? "APPLE MUSIC" : "МУЗЫКА") }
+    var sourceName: String { activePlayerID == "com.spotify.client" ? "SPOTIFY" : (activePlayerID == "com.apple.Music" ? "APPLE MUSIC" : L("МУЗЫКА")) }
     func displayPosition(at now: Date = Date()) -> Double {
         MusicSnapshot(title: title, artist: artist, playing: playing, position: position, duration: duration, volume: volume).displayPosition(at: now, sampledAt: sampledAt)
     }
+    private var displayingStatus = true
+    func relocalizeStatus() {
+        if displayingStatus {
+            title = Localization.shared.status(title); artist = Localization.shared.status(artist)
+        }
+    }
     private func clear() {
+        displayingStatus = true
         artworkTask?.cancel(); artworkTask = nil; artworkURL = nil; artwork = nil
         playing = false; position = 0; duration = 0; activePlayerID = nil; permissionDenied = false
-        title = "Музыка"; artist = "Открой Spotify или Music"; retryAfter = .distantPast; onChange?()
+        title = L("Музыка"); artist = L("Открой Spotify или Music"); retryAfter = .distantPast; onChange?()
     }
     func refresh(force: Bool = false, requestPermission: Bool = false) {
         guard inFlight == nil, force || Date() >= retryAfter else { return }
@@ -70,8 +77,9 @@ final class MusicController: ObservableObject {
         // Background polling must never present an Automation consent prompt.
         let permission = AEDeterminePermissionToAutomateTarget(address, typeWildCard, typeWildCard, false)
         if permission != noErr && !requestPermission {
+            displayingStatus = true
             activePlayerID = id; permissionDenied = true; playing = false
-            title = "Нет доступа к плееру"; artist = "Нажми на виджет, чтобы подключить плеер"
+            title = L("Нет доступа к плееру"); artist = L("Нажми на виджет, чтобы подключить плеер")
             retryAfter = Date().addingTimeInterval(30); onChange?()
             return
         }
@@ -80,7 +88,7 @@ final class MusicController: ObservableObject {
         let artExpression = id == "com.spotify.client" ? "artwork url of current track" : "raw data of artwork 1 of current track"
         let source = """
         tell application id "\(id)"
-            if player state is stopped then return {"Музыка", "Ничего не играет", "stopped", 0.0, 0.0, "", sound volume}
+            if player state is stopped then return {"", "", "stopped", 0.0, 0.0, "", sound volume}
             set art to ""
             try
                 set art to \(artExpression)
@@ -97,7 +105,8 @@ final class MusicController: ObservableObject {
                 guard let self, self.generation == currentGeneration, self.inFlight == request else { return }
                 self.inFlight = nil; self.activePlayerID = id
                 if let snapshot {
-                    self.title = snapshot.title; self.artist = snapshot.artist; self.playing = snapshot.playing
+                    self.displayingStatus = snapshot.title.isEmpty && snapshot.artist.isEmpty
+                    self.title = self.displayingStatus ? L("Музыка") : snapshot.title; self.artist = self.displayingStatus ? L("Ничего не играет") : snapshot.artist; self.playing = snapshot.playing
                     self.position = snapshot.position; self.duration = snapshot.duration; self.volume = snapshot.volume
                     self.sampledAt = Date(); self.permissionDenied = false; self.retryAfter = .distantPast
                     if id == "com.apple.Music" { self.artworkTask?.cancel(); self.artworkURL = nil; self.artwork = snapshot.artworkData.flatMap { $0.count < 8_000_000 ? NSImage(data: $0) : nil } }
@@ -105,8 +114,9 @@ final class MusicController: ObservableObject {
                 } else {
                     self.playing = false; self.position = 0; self.duration = 0; self.artwork = nil
                     self.permissionDenied = code == -1743
-                    self.title = self.permissionDenied ? "Нет доступа к плееру" : "Плеер пока недоступен"
-                    self.artist = self.permissionDenied ? "Разреши Автоматизацию в macOS" : "Открой трек и попробуй снова"
+                    self.displayingStatus = true
+                    self.title = self.permissionDenied ? L("Нет доступа к плееру") : L("Плеер пока недоступен")
+                    self.artist = self.permissionDenied ? L("Разреши Автоматизацию в macOS") : L("Открой трек и попробуй снова")
                     self.retryAfter = Date().addingTimeInterval(self.permissionDenied ? 30 : 5)
                 }
                 self.onChange?()

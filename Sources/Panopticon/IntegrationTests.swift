@@ -1,7 +1,7 @@
 import AppKit
 
 func runIntegrationTests() throws {
-    let suite = "app.newmacbar.integration.\(UUID().uuidString)"
+    let suite = "app.panopticon.integration.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
     let finder = "/System/Library/CoreServices/Finder.app"
