@@ -21,7 +21,7 @@ case "$task_archs" in
     *arm64*x86_64*|*x86_64*arm64*) task_arch=universal ;;
     *) printf 'Unexpected binary architectures\n' >&2; exit 1 ;;
 esac
-task_stage=$(mktemp -d "${TMPDIR:-/private/tmp}/panopticon-dmg.XXXXXX")
+task_stage=$(mktemp -d "$PWD/build/.dmg.XXXXXX")
 task_mounted=false
 cleanup() {
     if [[ "$task_mounted" == true ]]; then hdiutil detach -quiet "$task_stage/mount" || true; fi
@@ -29,24 +29,41 @@ cleanup() {
 }
 trap cleanup EXIT
 mkdir -p "$task_stage/image" "$task_stage/mount"
+mkdir -p "$task_stage/image/.background"
+cp resources/dmg/background.png "$task_stage/image/.background/background.png"
+cp resources/dmg/finder-layout.dat "$task_stage/image/.DS_Store"
+cp resources/AppIcon.icns "$task_stage/image/.VolumeIcon.icns"
 ditto "$task_app" "$task_stage/image/Panopticon.app"
 ln -s /Applications "$task_stage/image/Applications"
 task_output="build/Panopticon-$task_version-$task_arch.dmg"
-hdiutil create -quiet -volname "Panopticon $task_version" -srcfolder "$task_stage/image" -ov -format UDZO "$task_output"
-if [[ "$task_signing" == developer-id ]]; then codesign --force --sign "$SIGN_IDENTITY" --timestamp "$task_output"; codesign --verify --strict "$task_output"; fi
-hdiutil verify "$task_output"
-hdiutil attach -quiet -readonly -nobrowse -mountpoint "$task_stage/mount" "$task_output"
+task_verified="$task_stage/Panopticon-$task_version-$task_arch.dmg"
+hdiutil create -quiet -fs HFS+ -volname Panopticon -srcfolder "$task_stage/image" -format UDRW "$task_stage/edit.dmg"
+hdiutil attach -quiet -readwrite -nobrowse -noautoopen -mountpoint "$task_stage/mount" "$task_stage/edit.dmg"
+task_mounted=true
+# Set metadata on the generated volume, never on the user's Finder preferences.
+xattr -wx com.apple.FinderInfo 0000000000000000040000000000000000000000000000000000000000000000 "$task_stage/mount"
+hdiutil detach -quiet "$task_stage/mount"; task_mounted=false
+hdiutil convert -quiet -format UDZO -o "$task_verified" "$task_stage/edit.dmg"
+if [[ "$task_signing" == developer-id ]]; then codesign --force --sign "$SIGN_IDENTITY" --timestamp "$task_verified"; codesign --verify --strict "$task_verified"; fi
+hdiutil verify "$task_verified"
+hdiutil attach -quiet -readonly -nobrowse -noautoopen -mountpoint "$task_stage/mount" "$task_verified"
 task_mounted=true
 codesign --verify --deep --strict "$task_stage/mount/Panopticon.app"
 cmp "$task_app/Contents/MacOS/Panopticon" "$task_stage/mount/Panopticon.app/Contents/MacOS/Panopticon"
 [[ "$(readlink "$task_stage/mount/Applications")" == /Applications ]]
+cmp resources/dmg/background.png "$task_stage/mount/.background/background.png"
+cmp resources/dmg/finder-layout.dat "$task_stage/mount/.DS_Store"
 hdiutil detach -quiet "$task_stage/mount"; task_mounted=false
-# An unnotarized development image is labelled in the manifest, never called a release.
+# Only replace the previous artifact once the new image has passed verification.
+mv -f "$task_verified" "$task_output"
+# Record signing and notarization accurately, including an ad-hoc public package.
 python3 - "$task_output" <<'PY'
 import hashlib, json, pathlib, sys
 image=pathlib.Path(sys.argv[1])
 manifest=json.loads(pathlib.Path('build/app-manifest.json').read_text())
 manifest.update(dmg=image.name, dmgSigned=manifest["signing"] == "developer-id", dmgNotarized=False, dmgSHA256=hashlib.sha256(image.read_bytes()).hexdigest())
+manifest['installerBackgroundSHA256']=hashlib.sha256(pathlib.Path('resources/dmg/background.png').read_bytes()).hexdigest()
+manifest['installerLayoutSHA256']=hashlib.sha256(pathlib.Path('resources/dmg/finder-layout.dat').read_bytes()).hexdigest()
 image.with_suffix('.manifest.json').write_text(json.dumps(manifest, indent=2, sort_keys=True)+'\n')
 PY
 (cd build && shasum -a 256 "${task_output:t}" > "${task_output:t}.sha256")

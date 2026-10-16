@@ -28,15 +28,16 @@ No subscription, required account, telemetry or third-party libraries.
 
 ## Start here
 
-**Version 1.0 is in local release-candidate review.** A public DMG has not been
-published yet. See [release readiness](docs/RELEASE.md) for the exact checks and limits.
+[**Download the latest release →**](https://github.com/anonymmized/Panopticon/releases/latest)
 
-To build and install on your Mac, use Xcode or Command Line Tools with Swift 5.9+:
+1. Open the release page and download the **universal DMG** from Assets.
+2. Open the disk image and drag **Panopticon** into **Applications**.
+3. Launch it from Applications. If macOS blocks the first launch, try opening it once,
+   then choose **System Settings → Privacy & Security → Open Anyway** and confirm.
 
-```sh
-./build.sh
-open build/Panopticon.app
-```
+One download supports **Apple Silicon and Intel**, macOS 13+. No Xcode or terminal is needed.
+The current package is distributed without Apple notarization. The download button points
+at the latest published release; the owner must publish it before the asset is available.
 
 On first launch, choose a screen edge, import your macOS Dock apps and select widgets.
 Calendar, player control and Accessibility connections are optional.
@@ -47,6 +48,15 @@ Calendar, player control and Accessibility connections are optional.
    onto a space symbol to move them; originals remain on disk.
 3. **Find your look.** Adjust Appearance, then pick up to two widgets. Full animations
    enables hover magnification and launch bounce. Follow macOS respects Reduce Motion.
+
+## The right window, within reach
+
+![Application window selection](docs/assets/windows-en.png)
+
+Hover over a running app to see its windows. Click to switch directly to a window,
+including one that is minimized. Hovering leaves keyboard focus in your current app;
+moving into the list keeps the Dock open. Enable Accessibility with the explicit button.
+No Screen Recording permission is needed. Individual browser tabs remain in the browser.
 
 ## A panel that feels at home
 
@@ -93,23 +103,16 @@ overlap. A complete replacement inside Mission Control is not implemented.
 Auto-hide responds to a brief hover at the chosen edge. Ordinary clicks, opening
 Settings and background updates do not summon a hidden panel.
 
-## Build, verify, update
+## Updates and Homebrew
 
-```sh
-./scripts/check_release.sh
-ARCH=universal ./build.sh
-./scripts/make_dmg.sh --skip-build
-./scripts/verify_distribution.sh build/Panopticon-1.0.0-universal.dmg
-```
+Quit Panopticon from its menu-bar icon, download the [latest release](https://github.com/anonymmized/Panopticon/releases/latest)
+and replace the app in Applications. Spaces, pins and preferences are preserved.
+There is no automatic in-app updater.
 
-Quit the installed app before updating, then run `./scripts/install_app.sh`.
-The installer keeps a verified ZIP backup and rolls back a failed replacement.
-Preferences retain their existing identity. macOS may ask to approve permissions again
-when a build's signing identity changes.
-
-Local builds are ad-hoc signed unless a Developer ID identity is supplied. Ad-hoc
-signing is not Apple notarization. See [distribution](docs/DISTRIBUTION.md) for signed
-packages and the separate publication step.
+A custom Homebrew tap can be generated from the verified DMG. It becomes usable after
+the owner publishes the release and a separate tap; Panopticon is not currently listed
+in the official Homebrew catalog. See [publication](docs/RELEASE.md).
+Source builds and checks are documented in [Development](docs/DEVELOPMENT.md).
 
 <details>
 <summary><strong>Explore the project</strong></summary>

@@ -6,6 +6,7 @@ build/.staging.*/
 build/.previous.*/
 .build/
 .swiftpm/
+__pycache__/
 build.log
 build/*.zip
 AGENTS_PLAN.md

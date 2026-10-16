@@ -2,6 +2,9 @@
 
 [Английский](README.md) | [Русский](README.ru.md)
 
+Для установки открой [последний релиз](https://github.com/anonymmized/Panopticon/releases/latest),
+скачай универсальный DMG и перетащи приложение в Applications. Терминал и Xcode не нужны.
+
 | Тема | Документ |
 |---|---|
 | Ежедневное использование | [Руководство](USAGE.ru.md) |

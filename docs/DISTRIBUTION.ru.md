@@ -2,6 +2,10 @@
 
 [Английский](DISTRIBUTION.md) | [Русский](DISTRIBUTION.ru.md)
 
+Для установки используй DMG из [последнего релиза](https://github.com/anonymmized/Panopticon/releases/latest).
+Ниже описана упаковка для разработчиков. Публикация версии и Homebrew tap —
+в [инструкции выпуска](RELEASE.ru.md).
+
 ## Локальные сборки
 
 ```sh
@@ -39,9 +43,10 @@ ARCH=universal ./build.sh
 
 ## Developer ID и нотариализация
 
-Ad-hoc подпись предназначена для локальной разработки и не означает нотариализацию Apple.
-Для распространяемой подписанной сборки владельцу нужны сертификат Developer ID
-и предварительно сохранённый профиль notarytool в Keychain.
+Первый скачиваемый пакет использует подпись ad-hoc и не нотариализован Apple.
+Первый запуск может потребовать подтверждения в «Конфиденциальность и безопасность».
+Подпись Developer ID и нотариализацию можно добавить позже; для них владельцу нужны
+сертификат Developer ID и сохранённый профиль notarytool в Keychain.
 
 ```sh
 export SIGN_IDENTITY='Developer ID Application: YOUR IDENTITY'

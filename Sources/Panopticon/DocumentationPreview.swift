@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import SwiftUI
 
 /// Render actual product components with disposable demo preferences. No network,
@@ -90,6 +91,36 @@ func renderDocumentationAssets() {
                 .preferredColorScheme(.dark).environment(\.locale, Localization.shared.locale).tint(.purple)
             try saveDocumentationContent(widgets, size: NSSize(width: 820, height: 570),
                 to: output.appendingPathComponent("widgets-\(language.rawValue).png"))
+
+            let state = WindowSwitcherState()
+            state.name = "Safari"
+            state.icon = NSWorkspace.shared.icon(forFile: safari)
+            state.phase = .ready
+            // Static demo elements are never queried or acted on by this renderer.
+            let element = AXUIElementCreateApplication(ProcessInfo.processInfo.processIdentifier)
+            state.windows = [
+                AX.Window(title: "Panopticon · GitHub", minimized: false, element: element),
+                AX.Window(title: russian ? "Идеи для проекта" : "Project ideas", minimized: false, element: element),
+                AX.Window(title: russian ? "Календарь · Сегодня" : "Calendar · Today", minimized: true, element: element),
+            ]
+            let windows = HStack(spacing: 40) {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(russian ? "Твоё окно. Сразу." : "Your window. Right here.")
+                        .font(.system(size: 30, weight: .semibold))
+                    Text(russian ? "Наведи. Выбери. Продолжай." : "Hover. Choose. Keep going.")
+                        .font(.system(size: 17)).foregroundStyle(.secondary)
+                    Label(russian ? "Свёрнутые окна тоже рядом" : "Minimized windows included", systemImage: "macwindow")
+                    Label(russian ? "Фокус остаётся у тебя" : "Keyboard focus stays yours", systemImage: "cursorarrow")
+                    Label(russian ? "Без записи экрана" : "No Screen Recording required", systemImage: "hand.raised")
+                }.font(.system(size: 12)).frame(width: 370, alignment: .leading)
+                WindowSwitcherView(state: state, connect: {}, retry: {}, select: { _ in }, openApp: {})
+                    .frame(width: 340).background(Studio.surface, in: RoundedRectangle(cornerRadius: 18))
+                    .overlay(RoundedRectangle(cornerRadius: 18).stroke(.white.opacity(0.08), lineWidth: 1))
+                    .shadow(color: .black.opacity(0.25), radius: 28, y: 12)
+            }.padding(40).frame(width: 900, height: 450).background(Studio.canvas)
+                .preferredColorScheme(.dark).environment(\.locale, Localization.shared.locale).tint(.purple)
+            try saveDocumentationContent(windows, size: NSSize(width: 900, height: 450),
+                to: output.appendingPathComponent("windows-\(language.rawValue).png"))
         }
         print("PASS: bilingual documentation previews rendered from real app components")
     } catch {

@@ -56,3 +56,12 @@ file names and event metadata unchanged when switching language.
 
 The system Mission Control Dock is outside the custom panel's supported replacement
 surface. Avoid duplicate bars and describe this boundary honestly.
+
+## Reveal and window list
+
+The panel slides from the selected edge over a short eased transition. Reversing
+starts at the currently displayed frame. Reduce Motion uses a short opacity change.
+There is no permanent display timer at rest. The window list appears after a deliberate
+hover, uses native material, readable two-line rows and a minimized-window indicator,
+and leaves keyboard focus in the current app. It stays within the selected display.
+A brief pointer-transit allowance connects the app icon to the list without flicker.

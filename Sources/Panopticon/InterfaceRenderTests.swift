@@ -37,6 +37,27 @@ func renderInterfaceFixtures() {
             let image = bitmap.representation(using: .png, properties: [:])!
             try! image.write(to: output.appendingPathComponent("settings-\(language.rawValue)-\(appearance).png"))
             window.close()
+            for permission in [true, false] {
+                let state = WindowSwitcherState()
+                state.name = "Safari"
+                state.icon = NSWorkspace.shared.icon(forFile: "/System/Library/CoreServices/Finder.app")
+                state.phase = permission ? .permission : .unavailable
+                let size = NSSize(width: 340, height: permission ? 278 : 268)
+                let preview = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
+                preview.isReleasedWhenClosed = false
+                let view = NSHostingView(rootView: WindowSwitcherView(state: state, connect: {}, retry: {}, select: { _ in }, openApp: {})
+                    .frame(width: size.width, height: size.height)
+                    .background(appearance == "dark" ? Color(nsColor: .windowBackgroundColor) : .white)
+                    .preferredColorScheme(appearance == "dark" ? .dark : .light))
+                preview.appearance = NSAppearance(named: appearance == "dark" ? .darkAqua : .aqua)
+                preview.contentView = view; preview.orderFront(nil)
+                view.layoutSubtreeIfNeeded()
+                RunLoop.main.run(until: Date().addingTimeInterval(0.12))
+                let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds)!
+                view.cacheDisplay(in: view.bounds, to: bitmap)
+                try! bitmap.representation(using: .png, properties: [:])!.write(to: output.appendingPathComponent("windows-\(permission ? "permission" : "unavailable")-\(language.rawValue)-\(appearance).png"))
+                preview.close()
+            }
         }
     }
     model.applyNativeDockStyle(); model.setMotionMode("reduced"); model.widget = "clock"; model.secondaryWidget = "calendar"; model.showSpaces = false

@@ -23,6 +23,7 @@ final class BarView: NSView, NSDraggingSource {
     var openAgenda: ((NSRect) -> Void)?
     var openCollection: ((AppCollection, NSRect) -> Void)?
     var openSettings: (() -> Void)?
+    var openWindows: ((DockItem, NSRect) -> Void)?
     var openMusic: ((NSRect) -> Void)?
     var availableLength: CGFloat = 1400 { didSet { if availableLength != oldValue { cachedLayout = nil } } }
     let glass = NSVisualEffectView()

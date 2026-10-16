@@ -2,6 +2,10 @@
 
 [English](DISTRIBUTION.md) | [Russian](DISTRIBUTION.ru.md)
 
+To install, use the DMG from the [latest release](https://github.com/anonymmized/Panopticon/releases/latest).
+The following commands are for maintainers. GitHub publication and the optional custom
+Homebrew tap are covered in [Release](RELEASE.md).
+
 ## Local builds
 
 ```sh
@@ -39,9 +43,10 @@ architectures and signature, then detaches it.
 
 ## Developer ID and notarization
 
-Ad-hoc signing is for local development and does not establish Apple notarization.
-For a distributable signed app, the owner must have a Developer ID certificate and
-an existing notarytool Keychain profile.
+The initial downloadable package uses an ad-hoc signature and is not notarized by
+Apple. First launch may require approval in Privacy & Security. Developer ID signing
+and notarization are optional distribution improvements; they require an owner-held
+Developer ID certificate and a notarytool Keychain profile.
 
 ```sh
 export SIGN_IDENTITY='Developer ID Application: YOUR IDENTITY'

@@ -62,6 +62,17 @@ extension SettingsView {
                     $model.showRunning)
             }
 
+            card(L("Окна при наведении")) {
+                row(L("Показывать окна приложения"),
+                    L("Задержи курсор на запущенном приложении и выбери нужное окно. Свёрнутые окна можно восстановить одним нажатием."),
+                    $model.showWindowSwitcher)
+                Text(L("Список окон использует Универсальный доступ. Снимки экрана и запись экрана не нужны. Вкладки внутри браузера остаются в самом браузере."))
+                    .font(Studio.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                if model.showWindowSwitcher && !AX.trusted {
+                    Button(L("Подключить Универсальный доступ…")) { AX.requestTrust() }.font(Studio.caption)
+                }
+            }
+
             Button(L("Завершить Panopticon и восстановить Dock")) { NSApp.terminate(nil) }.font(.system(size: 11))
                 .buttonStyle(.borderless).foregroundStyle(.secondary)
         }

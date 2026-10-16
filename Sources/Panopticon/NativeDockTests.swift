@@ -6,6 +6,19 @@ func runNativeDockModelTests() {
     defer { defaults.removePersistentDomain(forName: suite) }
     let paths = ["/System/Library/CoreServices/Finder.app", "/System/Applications/Music.app", "/System/Applications/Calendar.app"]
     let source = paths.map { DockItem(url: URL(fileURLWithPath: $0)) }
+    let launchSuite = suite + ".launch"
+    let launchDefaults = UserDefaults(suiteName: launchSuite)!
+    defer { launchDefaults.removePersistentDomain(forName: launchSuite) }
+    launchDefaults.set(paths, forKey: "pinned")
+    var requests: [URL] = []
+    let launcher = BarModel(defaults: launchDefaults, observe: false, systemDockProvider: { [] },
+        applicationOpener: { requests.append($0) })
+    launcher.running = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.finder")
+    launcher.launch(source[0])
+    launcher.running = []
+    launcher.launch(source[0])
+    precondition(requests == [source[0].url, source[0].url], "Both running and stopped apps receive a reopen request without opening real applications in tests")
+    precondition(launcher.recentAppPaths == [source[0].id], "Repeated launches deduplicate recent apps")
     defaults.set([String](), forKey: "pinned")
     defaults.set(true, forKey: "replaceDock")
     let model = BarModel(defaults: defaults, observe: false, systemDockProvider: { source })
@@ -95,7 +108,7 @@ func runNativeDockHoverTests() {
     for edge in DockEdge.allCases {
         model.edge = edge.rawValue
         controller.reveal()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.25))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.42))
         precondition(controller.panel.acceptsMouseMovedEvents && !controller.panel.canBecomeKey, "A nonactivating Dock receives hover without stealing focus")
         controller.panel.ignoresMouseEvents = true
         let resting = bar.frames[1]
@@ -133,7 +146,7 @@ func runNativeDockHoverTests() {
     precondition(!controller.hidden && controller.panel.isVisible, "Screen-edge trigger reveals the Dock")
     // A launch/termination notification during the slide must not reset it.
     controller.update()
-    RunLoop.main.run(until: Date().addingTimeInterval(0.25))
+    RunLoop.main.run(until: Date().addingTimeInterval(0.42))
     precondition(controller.panel.frame == controller.placement!.shown && controller.panel.alphaValue == 1, "Reveal completes despite a concurrent model refresh")
     controller.tick(keepVisible: true, now: now.addingTimeInterval(10), mouseLocation: outside)
     precondition(!controller.hidden, "An open popover or settings window keeps the Dock visible")

@@ -113,6 +113,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         rebuildApplicationMenu()
         bar = BarView(model: model, music: music, focus: focus, agenda: agenda)
         dockWindow = DockWindowController(model: model, bar: bar)
+        dockWindow.hoverBlocked = { [weak self] in
+            guard let self else { return true }
+            return self.focusPopover?.isShown == true || self.musicPopover?.isShown == true
+                || self.calendarPopover?.isShown == true || self.collectionPopover?.isShown == true
+                || self.folderPopover?.isShown == true || self.searchPanel?.isVisible == true
+        }
         bar.openFolder = { [weak self] url, rect in self?.showFolder(url, rect: rect) }
         for (index, key) in HotKeys.digitKeys.enumerated() {
             if let id = HotKeys.shared.register(
@@ -257,7 +263,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         let popupOpen =
             focusPopover?.isShown == true || musicPopover?.isShown == true || calendarPopover?.isShown == true
-            || collectionPopover?.isShown == true || folderPopover?.isShown == true
+            || collectionPopover?.isShown == true || folderPopover?.isShown == true || dockWindow.windowsAreShown
         if model.followMouse && !popupOpen && !bar.hasActiveDrag && NSEvent.pressedMouseButtons == 0,
             let index = NSScreen.screens.firstIndex(where: { $0.frame.contains(NSEvent.mouseLocation) }),
             index != model.screenIndex
@@ -498,6 +504,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let profile = sender.representedObject as? DockProfile { model.applyProfile(profile) }
     }
     func closePopovers() {
+        dockWindow?.dismissWindows()
         focusPopover?.close()
         musicPopover?.close()
         calendarPopover?.close()

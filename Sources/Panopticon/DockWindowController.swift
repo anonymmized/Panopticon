@@ -40,7 +40,19 @@ final class DockWindowController {
     private let model: BarModel
     private var selectedDisplayID: CGDirectDisplayID?
     private var lastScreenIndex: Int?
-    private var transition = UUID()
+    private var transitionTimer: Timer?
+    private var motion: DockRevealMotion?
+    var isTransitioning: Bool { motion != nil }
+    private var storedWindowSwitcher: WindowSwitcherController?
+    var windowSwitcher: WindowSwitcherController {
+        if let storedWindowSwitcher { return storedWindowSwitcher }
+        let controller = WindowSwitcherController(model: model, bar: bar)
+        storedWindowSwitcher = controller
+        return controller
+    }
+    var windowsAreShown: Bool { storedWindowSwitcher?.isShown == true }
+    func dismissWindows() { storedWindowSwitcher?.close() }
+    var hoverBlocked: (() -> Bool)?
     private var targetFrame: NSRect?
     private var targetHidden = true
     private var visibility: DockVisibilityPolicy
@@ -71,7 +83,13 @@ final class DockWindowController {
         root.addSubview(bar.glass)
         root.addSubview(bar)
         panel.contentView = root
+        bar.openWindows = { [weak self] item, rect in
+            guard let self, !self.hidden, !self.visibility.isOverviewActive else { return }
+            self.windowSwitcher.showExplicit(item: item, anchor: self.bar.screenRect(rect))
+        }
     }
+
+    deinit { transitionTimer?.invalidate(); storedWindowSwitcher?.close() }
 
     var screen: NSScreen? {
         if lastScreenIndex != model.screenIndex {
@@ -104,6 +122,7 @@ final class DockWindowController {
         let now = ProcessInfo.processInfo.systemUptime
         visibility.configure(enabled: model.barVisible, autoHide: model.autoHide, now: now)
         if !hidden || panel.isVisible { visibility.setOverview(overviewActive(), now: now) }
+        storedWindowSwitcher?.validateContext()
         apply(placement, animated: animated)
     }
 
@@ -118,44 +137,50 @@ final class DockWindowController {
             updatePassthrough()
             return
         }
-        let token = UUID()
-        transition = token
+        transitionTimer?.invalidate()
+        transitionTimer = nil
+        motion = nil
         targetFrame = target
         targetHidden = hiding
         let appearing = !hiding && !panel.isVisible
-        let shouldAnimate = animated || appearing || (!model.barVisible && panel.isVisible)
+        let shouldAnimate = !visibility.isOverviewActive && (animated || appearing || (!model.barVisible && panel.isVisible))
+        dismissWindows()
         if appearing {
             panel.setFrame(shouldAnimate && !reduced ? placement.hidden : placement.shown, display: true)
-            panel.alphaValue = shouldAnimate ? 0 : 1
+            panel.alphaValue = shouldAnimate ? (reduced ? 0 : 0.35) : 1
             panel.orderFrontRegardless()
         }
-        let animations = {
-            self.panel.animator().setFrame(target, display: true)
-            self.panel.animator().alphaValue = hiding ? 0 : 1
-        }
         if shouldAnimate && panel.isVisible {
-            NSAnimationContext.runAnimationGroup(
-                { context in
-                    context.duration = reduced ? 0.08 : hiding ? 0.22 : 0.18
-                    context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)
-                    animations()
-                },
-                completionHandler: { [weak self] in
-                    guard let self, self.transition == token else { return }
-                    if hiding {
-                        self.panel.orderOut(nil)
-                        self.panel.ignoresMouseEvents = true
-                        self.bar.finishAnimations()
-                    } else {
-                        self.updatePassthrough()
-                    }
-                })
+            motion = DockRevealMotion(from: panel.frame, to: target, fromAlpha: panel.alphaValue,
+                toAlpha: hiding ? 0 : 1, started: ProcessInfo.processInfo.systemUptime,
+                duration: reduced ? 0.1 : hiding ? 0.24 : 0.32)
+            let fps = ProcessInfo.processInfo.isLowPowerModeEnabled ? 30 : min(120, max(60, screen?.maximumFramesPerSecond ?? 60))
+            let timer = Timer(timeInterval: 1 / Double(fps), repeats: true) { [weak self] _ in self?.advanceTransition() }
+            timer.tolerance = 0.001
+            transitionTimer = timer
+            RunLoop.main.add(timer, forMode: .common)
         } else {
             panel.setFrame(target, display: true)
             panel.alphaValue = hiding ? 0 : 1
             if hiding { panel.orderOut(nil); bar.finishAnimations() }
         }
         updatePassthrough()
+    }
+
+    func advanceTransition(at time: TimeInterval = ProcessInfo.processInfo.systemUptime) {
+        guard let motion else { return }
+        let sample = motion.sample(at: time)
+        panel.setFrame(sample.frame, display: true)
+        panel.alphaValue = sample.alpha
+        guard sample.finished else { return }
+        transitionTimer?.invalidate()
+        transitionTimer = nil
+        self.motion = nil
+        if targetHidden {
+            panel.orderOut(nil)
+            panel.ignoresMouseEvents = true
+            bar.finishAnimations()
+        } else { updatePassthrough() }
     }
 
     func updatePassthrough(at screenPoint: NSPoint? = nil) {
@@ -166,7 +191,7 @@ final class DockWindowController {
         }
         let point = screenPoint ?? NSEvent.mouseLocation
         panel.updateMousePassthrough(for: bar, at: point)
-        bar.updatePointer(bar.convert(panel.convertPoint(fromScreen: point), from: nil))
+        bar.updatePointer(isTransitioning ? nil : bar.convert(panel.convertPoint(fromScreen: point), from: nil))
     }
 
     func reveal() {
@@ -185,6 +210,20 @@ final class DockWindowController {
         default: break
         }
         updatePassthrough()
+        if [.leftMouseDown, .rightMouseDown, .otherMouseDown].contains(event.type) {
+            storedWindowSwitcher?.mouseDown(at: NSEvent.mouseLocation)
+        }
+        if event.type == .keyDown && event.keyCode == 53 { storedWindowSwitcher?.dismissUntilExit() }
+        updateWindowSwitcher(at: NSEvent.mouseLocation)
+    }
+
+    private func updateWindowSwitcher(at point: NSPoint) {
+        let permitted = model.barVisible && model.showWindowSwitcher && !hidden && !isTransitioning
+            && !visibility.isOverviewActive && hoverBlocked?() != true
+        guard permitted else { dismissWindows(); return }
+        let local = bar.convert(panel.convertPoint(fromScreen: point), from: nil)
+        guard storedWindowSwitcher != nil || bar.containsInteractivePoint(local) else { return }
+        windowSwitcher.update(at: point, permitted: true, dragging: bar.hasActiveDrag || NSEvent.pressedMouseButtons != 0)
     }
 
     func tick(
@@ -204,17 +243,22 @@ final class DockWindowController {
         }
         let inside = !hidden && bar.containsInteractivePoint(
             bar.convert(panel.convertPoint(fromScreen: mouseLocation), from: nil))
-        visibility.tick(now: time, nearEdge: nearEdge, inside: inside, keepVisible: keepVisible,
+        visibility.tick(now: time, nearEdge: nearEdge, inside: inside,
+            keepVisible: keepVisible || storedWindowSwitcher?.retainsDock(at: mouseLocation) == true,
             buttonsPressed: pressed, dragging: bar.hasActiveDrag || (pressed && pointerIsDragging && nearEdge))
         if wasHidden != hidden || targetHidden != (hidden || !model.barVisible) {
             apply(placement, animated: true)
         }
         updatePassthrough(at: mouseLocation)
+        updateWindowSwitcher(at: mouseLocation)
     }
 
     func stop() {
         visibility.suspend()
-        transition = UUID()
+        transitionTimer?.invalidate()
+        transitionTimer = nil
+        motion = nil
+        dismissWindows()
         targetFrame = nil
         panel.permitsPresentation = false
         panel.orderOut(nil)

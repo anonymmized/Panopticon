@@ -26,11 +26,14 @@ extension BarView {
         }
         if let index = hitItem(point), index < displayItems.count {
             let item = displayItems[index]
-            if let app = model.runningApplication(for: item) {
-                for window in AX.windows(of: app) {
-                    menu.addItem(ActionMenuItem(window.title) { AX.focus(window, of: app) })
-                }
-                if !menu.items.isEmpty { menu.addItem(.separator()) }
+            if model.showWindowSwitcher, model.runningApplication(for: item) != nil {
+                // Never wait on another application's AX server while opening a menu.
+                menu.addItem(ActionMenuItem(L("Окна приложения…")) { [weak self] in
+                    guard let self, let current = self.displayItems.firstIndex(where: { $0.id == item.id }),
+                        current < self.frames.count else { return }
+                    self.openWindows?(item, self.frames[current])
+                })
+                menu.addItem(.separator())
             }
             if model.pinned.contains(item) {
                 let spaces = NSMenu()

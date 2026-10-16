@@ -19,6 +19,7 @@ final class BarModel: ObservableObject {
     static let shared = BarModel()
     private let defaults: UserDefaults
     private let systemDockProvider: () -> [DockItem]
+    private let applicationOpener: (URL) -> Void
     @Published var pinned: [DockItem] = []
     @Published var running: [NSRunningApplication] = []
     @Published var iconSize: Double { didSet { save() } }
@@ -71,6 +72,7 @@ final class BarModel: ObservableObject {
     @Published var showSpaces: Bool { didSet { save() } }
     @Published var showTrash: Bool { didSet { save() } }
     @Published var showBadges: Bool { didSet { save() } }
+    @Published var showWindowSwitcher: Bool { didSet { save() } }
     @Published var autoSwitchDesktops: Bool { didSet { save() } }
     @Published var scrollToSwitch: Bool { didSet { save() } }
     @Published var followMouse: Bool { didSet { save() } }
@@ -84,13 +86,16 @@ final class BarModel: ObservableObject {
     private var observers: [NSObjectProtocol] = []
 
     init(defaults: UserDefaults = .standard, observe: Bool = true,
-         systemDockProvider: @escaping () -> [DockItem] = BarModel.systemDockItems) {
+         systemDockProvider: @escaping () -> [DockItem] = BarModel.systemDockItems,
+         applicationOpener: @escaping (URL) -> Void = { ActionRouter.open(.application($0)) }) {
         self.defaults = defaults
         self.systemDockProvider = systemDockProvider
+        self.applicationOpener = applicationOpener
         edge = SettingsRules.choice(defaults.string(forKey: "edge") ?? "bottom", DockEdge.allCases.map(\.rawValue), fallback: "bottom")
         showSpaces = defaults.object(forKey: "showSpaces") as? Bool ?? true
         showTrash = defaults.object(forKey: "showTrash") as? Bool ?? true
         showBadges = defaults.bool(forKey: "showBadges")
+        showWindowSwitcher = defaults.object(forKey: "showWindowSwitcher") as? Bool ?? true
         autoSwitchDesktops = defaults.object(forKey: "autoSwitchDesktops") as? Bool ?? true
         scrollToSwitch = defaults.object(forKey: "scrollToSwitch") as? Bool ?? true
         followMouse = defaults.bool(forKey: "followMouse")
@@ -296,6 +301,7 @@ final class BarModel: ObservableObject {
         defaults.set(selectedSpaceID, forKey: "selectedSpaceID")
         defaults.set(edge, forKey: "edge"); defaults.set(showSpaces, forKey: "showSpaces")
         defaults.set(showTrash, forKey: "showTrash"); defaults.set(showBadges, forKey: "showBadges")
+        defaults.set(showWindowSwitcher, forKey: "showWindowSwitcher")
         defaults.set(autoSwitchDesktops, forKey: "autoSwitchDesktops")
         defaults.set(scrollToSwitch, forKey: "scrollToSwitch"); defaults.set(followMouse, forKey: "followMouse")
         defaults.set(barVisible, forKey: "barVisible")
@@ -343,9 +349,8 @@ final class BarModel: ObservableObject {
     func launch(_ item: DockItem) {
         recentAppPaths.removeAll { $0 == item.id }; recentAppPaths.insert(item.id, at: 0)
         recentAppPaths = Array(recentAppPaths.prefix(12)); defaults.set(recentAppPaths, forKey: "recentAppPaths")
-        if let app = runningApplication(for: item) { if app.activate(options: [.activateAllWindows]) { return } }
-        NSWorkspace.shared.openApplication(at: item.url, configuration: NSWorkspace.OpenConfiguration()) { _, error in
-            if let error { DispatchQueue.main.async { let alert = NSAlert(error: error); alert.runModal() } }
-        }
+        // Always deliver the normal reopen request. Activation alone succeeds
+        // for an app with no windows, leaving a Dock click apparently ineffective.
+        applicationOpener(item.url)
     }
 }

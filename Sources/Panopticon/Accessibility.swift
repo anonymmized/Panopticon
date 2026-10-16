@@ -38,28 +38,41 @@ enum AX {
     struct Window {
         let title: String
         let minimized: Bool
-        fileprivate let element: AXUIElement
+        let element: AXUIElement
     }
+
+    enum WindowError: Error { case permission, unavailable }
 
     static func windows(of app: NSRunningApplication) -> [Window] {
-        guard trusted else { return [] }
-        let element = AXUIElementCreateApplication(app.processIdentifier)
-        AXUIElementSetMessagingTimeout(element, 0.2)
-        return (attribute(element, kAXWindowsAttribute) as? [AXUIElement] ?? []).prefix(30).compactMap { window in
-            guard (attribute(window, kAXSubroleAttribute) as? String) == kAXStandardWindowSubrole else { return nil }
-            let title = attribute(window, kAXTitleAttribute) as? String ?? ""
-            return Window(title: title.isEmpty ? L("Без названия") : title,
-                          minimized: attribute(window, kAXMinimizedAttribute) as? Bool ?? false,
-                          element: window)
-        }
+        (try? windowList(of: app).get()) ?? []
     }
 
-    static func focus(_ window: Window, of app: NSRunningApplication) {
-        if window.minimized {
-            AXUIElementSetAttributeValue(window.element, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+    static func windowList(of app: NSRunningApplication, cancelled: () -> Bool = { false }) -> Result<[Window], WindowError> {
+        guard trusted else { return .failure(.permission) }
+        guard !app.isTerminated, !cancelled() else { return .failure(.unavailable) }
+        let element = AXUIElementCreateApplication(app.processIdentifier)
+        AXUIElementSetMessagingTimeout(element, 0.15)
+        guard let windows = attribute(element, kAXWindowsAttribute) as? [AXUIElement] else { return .failure(.unavailable) }
+        let deadline = ProcessInfo.processInfo.systemUptime + 1.5
+        var result: [Window] = []
+        for window in windows.prefix(30) {
+            guard !cancelled(), ProcessInfo.processInfo.systemUptime < deadline else { break }
+            AXUIElementSetMessagingTimeout(window, 0.15)
+            guard (attribute(window, kAXSubroleAttribute) as? String) == kAXStandardWindowSubrole else { continue }
+            let title = attribute(window, kAXTitleAttribute) as? String ?? ""
+            result.append(Window(title: title,
+                minimized: attribute(window, kAXMinimizedAttribute) as? Bool ?? false, element: window))
         }
-        AXUIElementPerformAction(window.element, kAXRaiseAction as CFString)
-        app.unhide()
-        app.activate(options: [])
+        return .success(result)
+    }
+
+    @discardableResult static func focus(_ window: Window, of app: NSRunningApplication) -> Bool {
+        guard trusted, !app.isTerminated else { return false }
+        AXUIElementSetMessagingTimeout(window.element, 0.2)
+        if (attribute(window.element, kAXMinimizedAttribute) as? Bool) ?? window.minimized {
+            guard AXUIElementSetAttributeValue(window.element, kAXMinimizedAttribute as CFString, kCFBooleanFalse) == .success else { return false }
+        }
+        _ = AXUIElementSetAttributeValue(window.element, kAXMainAttribute as CFString, kCFBooleanTrue)
+        return AXUIElementPerformAction(window.element, kAXRaiseAction as CFString) == .success
     }
 }

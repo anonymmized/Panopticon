@@ -33,3 +33,11 @@ list is not cleared or rewritten.
 
 Tests use isolated preference suites and generated fixtures. They do not grant
 permissions, empty the real Trash or mutate user documents.
+
+## Window selection
+
+Hovering over a running app queries that app's windows through Accessibility.
+Titles remain in memory only until the list closes. They are not written to preferences,
+diagnostics or telemetry. Other apps' windows are not polled. No screenshots are
+captured and Screen Recording permission is never requested. Accessibility access is
+requested only when the user clicks the enable button, never merely by opening the list.

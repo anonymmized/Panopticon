@@ -2,6 +2,28 @@
 
 [English](USAGE.md) | [Russian](USAGE.ru.md)
 
+## Install and update
+
+Download the DMG from the [latest release](https://github.com/anonymmized/Panopticon/releases/latest),
+open it and drag Panopticon into Applications. Requires macOS 13+; one app supports
+Apple Silicon and Intel. Quit the running copy before updating. Preferences are preserved.
+No source build is required for normal installation. If macOS blocks the first launch,
+try opening it, then use System Settings > Privacy & Security > Open Anyway and confirm.
+This build is not notarized by Apple. No automatic in-app updater is included.
+
+## Choose an open window
+
+Hover over a running app for about half a second. The list shows up to 30 available
+windows; scroll if needed. Click a window to switch to it or restore it from the Dock.
+The app context menu also offers **Application windows…**. Hovering never takes
+keyboard focus from your current app.
+
+Enable Accessibility with the explicit button if needed. Revoke it at any time in
+macOS Settings. Turn window selection off in **Behavior & displays > Windows on hover**.
+Titles are queried only for the selected app; Screen Recording permission is not needed.
+Individual browser tabs remain inside the browser. If a window closes or the app
+stops responding, refresh the list or open the app.
+
 ## Apps and spaces
 
 Open Settings from the menu-bar icon or the panel context menu. Import apps from the
@@ -84,3 +106,11 @@ Use **Restore system Dock** in the menu bar or System & recovery. After an inter
 session, Panopticon preserves the backup and lets you restore or continue. The CLI
 `Panopticon --restore-system-dock` coordinates with a running instance; it does not
 race a second writer against that instance.
+
+For the full edge slide, choose **Appearance > Motion > Full animations**. Follow macOS
+respects the system Reduce Motion setting; reduced mode uses a brief fade instead.
+Apps receive their normal reopen request even when already running, so each app can
+restore or create its window when it has no open windows.
+
+After updating an ad-hoc signed build, macOS may require approving Accessibility
+or other connections again. The panel preferences themselves are preserved.

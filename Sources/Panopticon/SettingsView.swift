@@ -37,7 +37,7 @@ struct SettingsSection: Identifiable {
         .init(
             id: "behavior", title: L("Поведение и экраны"), symbol: "display",
             detail: L("Край экрана, видимость и взаимодействие с macOS."),
-            keywords: L("Dock заменить скрывать монитор курсор бейджи корзина")),
+            keywords: L("Dock заменить скрывать монитор курсор бейджи корзина окна наведение универсальный доступ")),
         .init(
             id: "shortcuts", title: L("Клавиши"), symbol: "command", detail: L("Быстрые действия с клавиатуры."),
             keywords: L("поиск горячие сочетание конфликт")),

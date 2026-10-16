@@ -71,3 +71,12 @@ reference is `design/design_tokens.json`. Localization catalogs are bundled from
 
 Implementation history and contributed planning documents remain in Git. This
 reference describes the running interfaces rather than promising unimplemented APIs.
+
+## Reveal motion and window selection
+
+`DockRevealMotion` samples slide frames; its controller timer runs only during a
+transition. A reversed transition starts at the current frame. `WindowSwitcherController`
+owns a separate nonactivating panel, hover dwell, pointer transit and four-edge placement.
+`WindowListService` reads AX on a serial worker queue, cancels stale requests and publishes
+on the main thread. The global `showWindowSwitcher` preference defaults safely when
+loading existing settings and is independent of space snapshots and appearance profiles.

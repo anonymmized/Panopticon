@@ -1,102 +1,91 @@
-# Validation status
+# Validation
 
 [English](VALIDATION.md) | [Russian](VALIDATION.ru.md)
 
-Automated checks run on a Mac with an active WindowServer. They use isolated
-preferences and generated fixtures rather than real calendar, music or file permissions.
+Scope: **Panopticon 1.0.0, build 11**, reviewed on **2026-10-17**, macOS **26.6.2**
+on Apple Silicon. Tests use isolated preferences and generated fixtures. No public
+release, Homebrew upload or Apple notarization is performed by these checks.
 
-## Covered behavior
+## Automated acceptance
 
-- Matching translation catalogs, interpolation, plural forms, fallback and persistence.
-- Model self-tests in English and Russian.
-- Settings headings updating across a language change without cached labels.
-- Isolated content rendering in both languages and appearances.
-- Pin import, closed-app persistence, missing volumes and additive imports.
-- Space switching, profile round trips, normalization and scoped mutations.
-- Hidden startup, edge dwell, click suppression, wake and overview transitions.
-- Native hover tracking, neighbor magnification, reduced motion and timer teardown.
-- Four-edge geometry, overflow access, transparent margins, first click and focus.
-- App, folder, website and cross-space drag operations without deleting originals.
-- Bounded asynchronous folders, refresh, empty states and obsolete request rejection.
-- Calendar boundaries and metadata parsing without requesting live permissions.
-- Dock backup validation, rollback, crash recovery and single-session ownership.
-- A paused focus session surviving a planned-duration change.
+- Release build and model self-tests in English and Russian.
+- AppKit panel tests as arm64 and x86_64 through Rosetta; physical Intel hardware
+  is not represented by Rosetta coverage.
+- 727 matching catalog entries, 638 literal Swift translation keys and 14 English/Russian
+  document pairs with English-only primary Markdown and valid local links.
+- Native Dock import, persistent closed-app pins, offline-volume retention, profile
+  round trips, spaces, bounded settings and scoped undo.
+- Running and stopped app launches both dispatch the normal reopen request. Tests
+  substitute the launch transport and never open the user's real apps.
+- Four-edge slide intermediate frames, complete settling, hide reversal, overview
+  priority and teardown of transition timers.
+- Hover springs, clipping, overflow, native menus, transparent-margin passthrough,
+  first click, panel focus and compact/regular settings geometry.
+- Window-list placement on offset/small displays, nonactivating panels, explicit
+  permission fallback, space-change dismissal and stale asynchronous query rejection.
+- Bounded, cancellable folder reads; focus-session persistence and timer normalization;
+  calendar boundaries, metadata parsing and drag operations using fixtures.
+- Temporary installation, verified backup, failed-install rollback and preservation
+  of the original when rollback itself fails.
 
-## Packaging checks
+## Visual review
 
-Release build, native bundle tests, strict code signature verification, temporary
-installer rollback and disk-image manifest verification are the local acceptance
-checks. The manifests identify the actual architecture, source commit and signing
-status; use them when sharing a build.
+Native computer-use review checked the new settings card in a compact window,
+Russian and English, search using both languages and disabling/re-enabling the
+feature without requesting permissions. The selected native picker labels update
+with the interface language. User-supplied app/display names remain unchanged.
 
-## Practical limits
+The ready, permission and unavailable window-list components were rendered with
+fixture data; English/Russian and light/dark states were reviewed. README images use
+actual app components and demonstration data, not personal window titles or calendars.
 
-Short automated tests do not establish a multi-day soak result or guarantee the
-absence of all bugs. Physical Intel hardware, every display arrangement, physical sleep and
-unplug cycles, full VoiceOver review and permission-dependent integrations require
-separate hardware and user-driven verification.
+The Finder installer was reviewed after mounting a freshly generated image. The
+background, app/Applications icon positions and complete footer were visible. Its
+portable background reference excludes the build machine's user and source-image
+paths. Packaging stores the reviewed layout as a source asset; regular builds need
+no external packaging library.
 
-Ad-hoc signing does not mean Apple notarization. Mission Control remains controlled
-by macOS and can show its own Dock; Panopticon avoids overlapping that system surface.
+## Distribution
 
-## Installed-app review
+The universal bundle contains arm64 and x86_64, both catalogs, localized permission
+strings and the app icon. Strict code signature checks pass. The image verifier
+mounts read-only, verifies the app, architectures, versions, binary/image hashes,
+layout/artwork hashes, Applications link and volume icon. The previous DMG is replaced
+only after the next image has passed its local checks.
 
-The installed app was reviewed with native computer-use controls: all eleven settings
-sections, English-to-System language switching, sidebar search, light appearance and
-restoration of the previous appearance. The real sidebar renders correctly; the blank
-sidebar in offscreen render fixtures is a snapshot limitation.
+The generated custom-tap cask is pinned to the verified image's SHA-256 and passes
+Ruby syntax checking. It is not published; installing from the remote tap is a
+separate check after the owner publishes both the release and the tap.
 
-An existing configuration retained all ten pinned apps and its space, profiles,
-collections and shortcuts after installation. Settings navigation and unrelated clicks
-left the auto-hidden panel hidden. A real Mission Control entry and exit confirmed the
-current handoff and quiet return.
+The app retains its existing preferences identity. Existing configurations load the
+new window-selection flag with a default; space snapshots and appearance profiles
+do not overwrite it. No release check modifies the user's current Dock settings.
 
-Replacing the system Dock inside Mission Control is an open requirement. The current
-build hides Panopticon there to prevent overlap. AppKit's
-[`presentationOptions`](https://developer.apple.com/documentation/appkit/nsapplication/presentationoptions-swift.property)
-apply while the owning app is active; they do not provide a global replacement for
-the Dock during overview. The build does not claim to meet that requirement.
+## Measured performance
 
-Login-item registration, live calendar/player permissions and physical pointer-edge
-gestures were not exercised against the user's configuration. Hover and drag behavior
-were checked through the AppKit panel tests.
+The local drawing scenario uses four installed apps, two widgets and four edges:
+1,120 warmed layout samples and 112 drawing samples. Layout P95 was **0.081 ms**;
+drawing P95 was **2.60 ms**, with median **2.08 ms**.
 
-## Candidate acceptance on 2026-10-15
+A separate 30-second idle run after 15 seconds of warmup, with four apps, auto-hide,
+clock seconds and an idle focus widget, recorded **0.73% of one CPU core**,
+**15.3 MiB physical footprint** and **74.5 MiB maximum resident size**. Connections
+were disabled and settings were closed. The window-list panel is created on first
+use, not while the Dock is idle. Raw reports remain local in `build`.
 
-On macOS 26.6.2, the universal app passed both model and AppKit panel tests as arm64
-and as x86_64 through Rosetta. Rosetta coverage does not establish testing on a physical
-Intel Mac. The settings geometry regression checks compact and regular windows in both
-languages and appearances, including long settings content.
+These are short scenario measurements, not battery-life or long-duration guarantees.
+They vary with system activity and do not cover active window queries or playback.
 
-Native computer-use review confirmed compact-window headings, sidebar scrolling,
-language controls, light appearance, translated selected picker titles, localized
-numeric fields, theme labels, app search and Escape dismissal. No permission-dependent
-integration was connected during that review.
+## Separate user checks and limits
 
-The installer checks complete bundle resources and preserves the original even when
-both the final install move and its rollback fail. The tested failures use disposable
-folders. English and Russian README images were rendered from app components and
-visually reviewed; primary Markdown and all local image links passed validation.
+Live Accessibility window selection, calendar events, player control, login-item
+registration, full VoiceOver review, physical sleep and display unplug cycles require
+separate explicit user actions and hardware coverage. Automated tests do not grant
+permissions or manipulate the user's real windows/documents. These results do not
+claim a multi-day soak test or the absence of all bugs.
 
-The candidate keeps the existing preference identity. In-place installation was
-checked against a private local settings backup. Pins, spaces, profiles, collections,
-shortcuts and the selected space remained unchanged.
-
-## Performance evidence
-
-The isolated drawing benchmark uses four installed apps, two widgets and all four
-edges, with 1,120 warmed layout samples and 112 drawing samples. Raw timing and process
-reports are generated locally in `build`; they do not contain personal document or
-event data. Short idle measurements vary with system activity and are not a battery-life
-or long-term performance guarantee. Hidden-panel code defers unused pointer/button
-queries; it keeps current screen geometry and the tested edge-reveal policy.
-
-The final local synthetic run recorded layout P95 **0.079 ms** and drawing P95
-**2.45 ms**. A separate 30-second auto-hide run with four apps, clock seconds and an
-idle focus widget recorded **1.05% of one CPU core**, **15.3 MiB physical footprint**
-and **74.3 MiB maximum resident size**. Integrations were disabled. These are scenario
-measurements, not a promise for other Macs or configurations.
-
-The isolated English lifecycle probe also passed owner restoration acknowledgement,
-second-instance activation and clean removal of its session marker. Opening settings
-in that probe makes its CPU result unsuitable for an idle comparison.
+The package is ad-hoc signed and **not notarized by Apple**. First launch can require
+per-app approval in Privacy & Security. **Mission Control uses the system Dock**;
+Panopticon yields there to prevent overlap. A complete replacement inside overview
+is not implemented. Window selection lists windows, not individual browser tabs or
+screenshots, and the application has no automatic updater.

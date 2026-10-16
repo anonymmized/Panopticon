@@ -30,7 +30,7 @@ cleanup() {
 }
 trap cleanup EXIT
 mkdir "$task_stage/mount"
-hdiutil attach -quiet -readonly -nobrowse -mountpoint "$task_stage/mount" "$task_image"; task_mounted=true
+hdiutil attach -quiet -readonly -nobrowse -noautoopen -mountpoint "$task_stage/mount" "$task_image"; task_mounted=true
 task_app="$task_stage/mount/Panopticon.app"
 codesign --verify --deep --strict "$task_app"
 python3 scripts/check_bundle.py "$task_app"
@@ -38,6 +38,12 @@ python3 scripts/check_bundle.py "$task_app"
 python3 - "$task_app" "$task_manifest" <<'PY'
 import hashlib, json, pathlib, plistlib, subprocess, sys
 app, manifest=pathlib.Path(sys.argv[1]), json.loads(pathlib.Path(sys.argv[2]).read_text())
+for key, relative in [('installerBackgroundSHA256', '.background/background.png'), ('installerLayoutSHA256', '.DS_Store')]:
+    if key in manifest and hashlib.sha256((app.parent/relative).read_bytes()).hexdigest()!=manifest[key]:
+        raise SystemExit('Installer layout or artwork does not match manifest')
+if 'installerLayoutSHA256' in manifest:
+    if (app.parent/'.VolumeIcon.icns').read_bytes() != (app/'Contents/Resources/AppIcon.icns').read_bytes():
+        raise SystemExit('Installer volume icon does not match the app')
 info=plistlib.loads((app/'Contents/Info.plist').read_bytes())
 binary=app/'Contents/MacOS/Panopticon'
 actual=set(subprocess.check_output(['lipo','-archs',str(binary)],text=True).split())
@@ -48,7 +54,7 @@ if manifest['notarized']:
     subprocess.run(['xcrun','stapler','validate',str(app)],check=True)
     subprocess.run(['spctl','--assess','--type','execute','--verbose=2',str(app)],check=True)
 else:
-    print('Development artifact: no Apple notarization claimed')
+    print('No Apple notarization claimed for this artifact')
 details=subprocess.run(['codesign','--display','--verbose=4',str(app)],capture_output=True,text=True,check=True).stderr
 if manifest['signing']=='developer-id' and 'Authority=Developer ID Application:' not in details:
     raise SystemExit('Expected Developer ID Application signature')

@@ -31,7 +31,10 @@ struct PanelPlacement {
         case .left: frame.origin.x = min(area.maxX - width, area.minX + gap)
         case .right: frame.origin.x = max(area.minX, area.maxX - width - gap)
         }
-        shown = frame.integral
+        // Use the same integral size on and off screen. AppKit rounds window
+        // frames; deriving the hidden frame from fractional sizes causes a jump.
+        frame = frame.integral
+        shown = frame
         switch edge {
         case .bottom:
             hidden = frame.offsetBy(dx: 0, dy: screen.minY - frame.maxY - 2)

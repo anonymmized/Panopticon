@@ -87,6 +87,7 @@ func runPlatformTests() {
 }
 
 func runWindowControllerTests() {
+    runRevealAndWindowSwitcherTests()
     let suite = "app.newmacbar.windowtest.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }

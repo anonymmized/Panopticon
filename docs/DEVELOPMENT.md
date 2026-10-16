@@ -66,7 +66,7 @@ owner instruction. Local packaging performs no publication.
 
 ## Documentation images
 
-Run `.build/release/Panopticon --render-docs` on macOS to regenerate the six English
+Run `.build/release/Panopticon --render-docs` on macOS to regenerate the eight English
 and Russian images in `docs/assets`. It renders real panel and settings components
 with disposable demonstration preferences. Review every image before committing;
 no personal events, file names, accounts or externally downloaded assets belong there.
@@ -82,3 +82,16 @@ checks owner acknowledgement and second-instance activation in English; that mod
 opens settings and must not be interpreted as an idle measurement. Every probe uses
 an isolated bundle identity and preferences, disables Dock replacement and connections,
 and removes its generated state on exit. Reports identify the source build.
+
+## Installer artwork
+
+The packaged DMG uses `resources/dmg/background.png` and a checked-in Finder layout
+asset, with large app and Applications icons. The layout is a source design resource,
+not a built installer. Regenerate the background with `swift scripts/render_dmg_background.swift`.
+The normal build uses only the saved assets and has no third-party packaging dependency.
+Verify the image and visually review a freshly mounted copy after editing its layout.
+The volume name remains Panopticon so the background reference resolves consistently.
+
+`ARCH=universal ./scripts/package_commit.sh HEAD build/release` packages a selected
+local commit in a temporary checkout, records that commit and performs no upload.
+Ad-hoc signing is the default; `NOTARIZE=1` requires an explicitly configured Developer ID.
